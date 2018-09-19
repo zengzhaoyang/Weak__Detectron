@@ -2,7 +2,7 @@ MODEL:
   TYPE: generalized_rcnn
   CONV_BODY: ResNet.ResNet50_conv4_body
   FASTER_RCNN: false
-NUM_GPUS: 8
+NUM_GPUS: 1
 RESNETS:
   IMAGENET_PRETRAINED_WEIGHTS: 'data/pretrained_model/resnet50_caffe.pth'
 SOLVER:
@@ -13,9 +13,6 @@ SOLVER:
   # 1x schedule (note TRAIN.IMS_PER_BATCH: 1)
   MAX_ITER: 36000
   STEPS: [0, 24000, 32000]
-RPN:
-  RPN_ON: true
-  SIZES: (32, 64, 128, 256, 512)
 FAST_RCNN:
   ROI_BOX_HEAD: ResNet.ResNet_roi_conv5_head
   ROI_XFORM_METHOD: RoIAlign
@@ -24,9 +21,10 @@ TRAIN:
   MAX_SIZE: 1000
   IMS_PER_BATCH: 1
   BATCH_SIZE_PER_IM: 512
+  PROPOSAL_FILES: ('data/selective_search_data/voc_2007_train.pkl', 'data/selective_search_data/voc_2007_val.pkl', 'data/selective_search_data/voc_2012_train.pkl', 'data/selective_search_data/voc_2012_val.pkl',)
 TEST:
-  SCALE: 300
-  MAX_SIZE: 100
+  SCALE: 600
+  MAX_SIZE: 1000
   NMS: 0.5
   RPN_PRE_NMS_TOP_N: 6000
   RPN_POST_NMS_TOP_N: 1000

@@ -87,14 +87,19 @@ if __name__ == '__main__':
     if args.set_cfgs is not None:
         merge_cfg_from_list(args.set_cfgs)
 
-    if args.dataset == "coco2017":
-        cfg.TEST.DATASETS = ('coco_2017_val',)
-        cfg.MODEL.NUM_CLASSES = 81
-    elif args.dataset == "keypoints_coco2017":
-        cfg.TEST.DATASETS = ('keypoints_coco_2017_val',)
-        cfg.MODEL.NUM_CLASSES = 2
-    else:  # For subprocess call
-        assert cfg.TEST.DATASETS, 'cfg.TEST.DATASETS shouldn\'t be empty'
+    #if args.dataset == "coco2017":
+    #    cfg.TEST.DATASETS = ('coco_2017_val',)
+    #    cfg.MODEL.NUM_CLASSES = 81
+    #elif args.dataset == "keypoints_coco2017":
+    #    cfg.TEST.DATASETS = ('keypoints_coco_2017_val',)
+    #    cfg.MODEL.NUM_CLASSES = 2
+    #else:  # For subprocess call
+    #    assert cfg.TEST.DATASETS, 'cfg.TEST.DATASETS shouldn\'t be empty'
+
+    cfg.TEST.DATASETS= ('voc_2007_test',)
+    cfg.MODEL.NUM_CLASSES = 21
+
+
     assert_and_infer_cfg()
 
     logger.info('Testing with config:')

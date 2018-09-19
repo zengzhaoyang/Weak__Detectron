@@ -26,7 +26,8 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import copy
-from six.moves import cPickle as pickle
+#from six.moves import cPickle as pickle
+import pickle
 import logging
 import numpy as np
 import os
@@ -330,7 +331,7 @@ class JsonDataset(object):
     ):
         """Add proposals from a proposals file to an roidb."""
         logger.info('Loading proposals from: {}'.format(proposal_file))
-        with open(proposal_file, 'r') as f:
+        with open(proposal_file, 'rb') as f:
             proposals = pickle.load(f)
         id_field = 'indexes' if 'indexes' in proposals else 'ids'  # compat fix
         _sort_proposals(proposals, id_field)

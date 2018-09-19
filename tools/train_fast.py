@@ -1,7 +1,6 @@
-""" Training Script """
+""" Training script for steps_with_decay policy"""
 
 import argparse
-import distutils.util
 import os
 import sys
 import pickle
@@ -24,24 +23,20 @@ import utils.net as net_utils
 import utils.misc as misc_utils
 from core.config import cfg, cfg_from_file, cfg_from_list, assert_and_infer_cfg
 from datasets.roidb import combined_roidb_for_training
-from modeling.model_builder import Generalized_RCNN
-from roi_data.loader import RoiDataLoader, MinibatchSampler, collate_minibatch
+from roi_data.loader import RoiDataLoader, MinibatchSampler, BatchSampler, collate_minibatch
+from modeling.model_fast_rcnn_builder import Generalized_RCNN
 from utils.detectron_weight_helper import load_detectron_weight
-from utils.logging import log_stats
+from utils.logging import setup_logging
 from utils.timer import Timer
 from utils.training_stats import TrainingStats
 
-# OpenCL may be enabled by default in OpenCV3; disable it because it's not
-# thread safe and causes unwanted GPU memory allocations.
-cv2.ocl.setUseOpenCL(False)
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Set up logging and load config options
+logger = setup_logging(__name__)
+logging.getLogger('roi_data.loader').setLevel(logging.INFO)
 
 # RuntimeError: received 0 items of ancdata. Issue: pytorch/pytorch#973
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
-
 
 def parse_args():
     """Parse input arguments"""
@@ -62,7 +57,7 @@ def parse_args():
     parser.add_argument(
         '--disp_interval',
         help='Display training info every N iterations',
-        default=100, type=int)
+        default=20, type=int)
     parser.add_argument(
         '--no_cuda', dest='cuda', help='Do not use CUDA device', action='store_false')
 
@@ -77,6 +72,10 @@ def parse_args():
         '--nw', dest='num_workers',
         help='Explicitly specify to overwrite number of workers to load data. Defaults to 4',
         type=int)
+    parser.add_argument(
+        '--iter_size',
+        help='Update once every iter_size steps, as in Caffe.',
+        default=1, type=int)
 
     parser.add_argument(
         '--o', dest='optimizer', help='Training optimizer.',
@@ -88,26 +87,12 @@ def parse_args():
         '--lr_decay_gamma',
         help='Learning rate decay rate.',
         default=None, type=float)
-    parser.add_argument(
-        '--lr_decay_epochs',
-        help='Epochs to decay the learning rate on. '
-             'Decay happens on the beginning of a epoch. '
-             'Epoch is 0-indexed.',
-        default=[4, 5], nargs='+', type=int)
 
     # Epoch
     parser.add_argument(
-        '--start_iter',
-        help='Starting iteration for first training epoch. 0-indexed.',
+        '--start_step',
+        help='Starting step count for training epoch. 0-indexed.',
         default=0, type=int)
-    parser.add_argument(
-        '--start_epoch',
-        help='Starting epoch count. Epoch is 0-indexed.',
-        default=0, type=int)
-    parser.add_argument(
-        '--epochs', dest='num_epochs',
-        help='Number of epochs to train',
-        default=6, type=int)
 
     # Resume training: requires same iterations per epoch
     parser.add_argument(
@@ -119,12 +104,6 @@ def parse_args():
         '--no_save', help='do not save anything', action='store_true')
 
     parser.add_argument(
-        '--ckpt_num_per_epoch',
-        help='number of checkpoints to save in each epoch. '
-             'Not include the one at the end of an epoch.',
-        default=3, type=int)
-
-    parser.add_argument(
         '--load_ckpt', help='checkpoint path to load')
     parser.add_argument(
         '--load_detectron', help='path to the detectron weight pickle file')
@@ -134,6 +113,26 @@ def parse_args():
         action='store_true')
 
     return parser.parse_args()
+
+
+def save_ckpt(output_dir, args, step, train_size, model, optimizer):
+    """Save checkpoint"""
+    if args.no_save:
+        return
+    ckpt_dir = os.path.join(output_dir, 'ckpt')
+    if not os.path.exists(ckpt_dir):
+        os.makedirs(ckpt_dir)
+    save_name = os.path.join(ckpt_dir, 'model_step{}.pth'.format(step))
+    if isinstance(model, mynn.DataParallel):
+        model = model.module
+    model_state_dict = model.state_dict()
+    torch.save({
+        'step': step,
+        'train_size': train_size,
+        'batch_size': args.batch_size,
+        'model': model.state_dict(),
+        'optimizer': optimizer.state_dict()}, save_name)
+    logger.info('save model: %s', save_name)
 
 
 def main():
@@ -162,32 +161,50 @@ def main():
     cfg.TRAIN.DATASETS= ('voc_2007_train', 'voc_2007_val', 'voc_2012_train', 'voc_2012_val')
     cfg.MODEL.NUM_CLASSES = 21
 
-
     cfg_from_file(args.cfg_file)
     if args.set_cfgs is not None:
         cfg_from_list(args.set_cfgs)
 
     ### Adaptively adjust some configs ###
     original_batch_size = cfg.NUM_GPUS * cfg.TRAIN.IMS_PER_BATCH
+    original_ims_per_batch = cfg.TRAIN.IMS_PER_BATCH
+    original_num_gpus = cfg.NUM_GPUS
     if args.batch_size is None:
         args.batch_size = original_batch_size
-    cfg.NUM_GPUS = torch.cuda.device_count()
+    #cfg.NUM_GPUS = torch.cuda.device_count()
     assert (args.batch_size % cfg.NUM_GPUS) == 0, \
         'batch_size: %d, NUM_GPUS: %d' % (args.batch_size, cfg.NUM_GPUS)
     cfg.TRAIN.IMS_PER_BATCH = args.batch_size // cfg.NUM_GPUS
-    print('Batch size change from {} (in config file) to {}'.format(
-        original_batch_size, args.batch_size))
-    print('NUM_GPUs: %d, TRAIN.IMS_PER_BATCH: %d' % (cfg.NUM_GPUS, cfg.TRAIN.IMS_PER_BATCH))
+    effective_batch_size = args.iter_size * args.batch_size
+    print('effective_batch_size = batch_size * iter_size = %d * %d' % (args.batch_size, args.iter_size))
+
+    print('Adaptive config changes:')
+    print('    effective_batch_size: %d --> %d' % (original_batch_size, effective_batch_size))
+    print('    NUM_GPUS:             %d --> %d' % (original_num_gpus, cfg.NUM_GPUS))
+    print('    IMS_PER_BATCH:        %d --> %d' % (original_ims_per_batch, cfg.TRAIN.IMS_PER_BATCH))
+
+    ### Adjust learning based on batch size change linearly
+    # For iter_size > 1, gradients are `accumulated`, so lr is scaled based
+    # on batch_size instead of effective_batch_size
+    old_base_lr = cfg.SOLVER.BASE_LR
+    cfg.SOLVER.BASE_LR *= args.batch_size / original_batch_size
+    print('Adjust BASE_LR linearly according to batch_size change:\n'
+          '    BASE_LR: {} --> {}'.format(old_base_lr, cfg.SOLVER.BASE_LR))
+
+    ### Adjust solver steps
+    step_scale = original_batch_size / effective_batch_size
+    old_solver_steps = cfg.SOLVER.STEPS
+    old_max_iter = cfg.SOLVER.MAX_ITER
+    cfg.SOLVER.STEPS = list(map(lambda x: int(x * step_scale + 0.5), cfg.SOLVER.STEPS))
+    cfg.SOLVER.MAX_ITER = int(cfg.SOLVER.MAX_ITER * step_scale + 0.5)
+    print('Adjust SOLVER.STEPS and SOLVER.MAX_ITER linearly based on effective_batch_size change:\n'
+          '    SOLVER.STEPS: {} --> {}\n'
+          '    SOLVER.MAX_ITER: {} --> {}'.format(old_solver_steps, cfg.SOLVER.STEPS,
+                                                  old_max_iter, cfg.SOLVER.MAX_ITER))
 
     if args.num_workers is not None:
         cfg.DATA_LOADER.NUM_THREADS = args.num_workers
     print('Number of data loading threads: %d' % cfg.DATA_LOADER.NUM_THREADS)
-
-    ### Adjust learning based on batch size change linearly
-    old_base_lr = cfg.SOLVER.BASE_LR
-    cfg.SOLVER.BASE_LR *= args.batch_size / original_batch_size
-    print('Adjust BASE_LR linearly according to batch size change: {} --> {}'.format(
-        old_base_lr, cfg.SOLVER.BASE_LR))
 
     ### Overwrite some solver settings from command line arguments
     if args.optimizer is not None:
@@ -196,6 +213,7 @@ def main():
         cfg.SOLVER.BASE_LR = args.lr
     if args.lr_decay_gamma is not None:
         cfg.SOLVER.GAMMA = args.lr_decay_gamma
+    assert_and_infer_cfg()
 
     timers = defaultdict(Timer)
 
@@ -204,23 +222,28 @@ def main():
     roidb, ratio_list, ratio_index = combined_roidb_for_training(
         cfg.TRAIN.DATASETS, cfg.TRAIN.PROPOSAL_FILES)
     timers['roidb'].toc()
-    train_size = len(roidb)
-    logger.info('{:d} roidb entries'.format(train_size))
+    roidb_size = len(roidb)
+    logger.info('{:d} roidb entries'.format(roidb_size))
     logger.info('Takes %.2f sec(s) to construct roidb', timers['roidb'].average_time)
 
-    sampler = MinibatchSampler(ratio_list, ratio_index)
+    # Effective training sample size for one epoch
+    train_size = roidb_size // args.batch_size * args.batch_size
+
+    batchSampler = BatchSampler(
+        sampler=MinibatchSampler(ratio_list, ratio_index),
+        batch_size=args.batch_size,
+        drop_last=True
+    )
     dataset = RoiDataLoader(
         roidb,
         cfg.MODEL.NUM_CLASSES,
         training=True)
     dataloader = torch.utils.data.DataLoader(
         dataset,
-        batch_size=args.batch_size,
-        sampler=sampler,
+        batch_sampler=batchSampler,
         num_workers=cfg.DATA_LOADER.NUM_THREADS,
         collate_fn=collate_minibatch)
-
-    assert_and_infer_cfg()
+    dataiterator = iter(dataloader)
 
     ### Model ###
     maskRCNN = Generalized_RCNN()
@@ -229,22 +252,47 @@ def main():
         maskRCNN.cuda()
 
     ### Optimizer ###
+    gn_param_nameset = set()
+    for name, module in maskRCNN.named_modules():
+        if isinstance(module, nn.GroupNorm):
+            gn_param_nameset.add(name+'.weight')
+            gn_param_nameset.add(name+'.bias')
+    gn_params = []
+    gn_param_names = []
     bias_params = []
+    bias_param_names = []
     nonbias_params = []
-    for key, value in dict(maskRCNN.named_parameters()).items():
+    nonbias_param_names = []
+    nograd_param_names = []
+    for key, value in maskRCNN.named_parameters():
         if value.requires_grad:
             if 'bias' in key:
                 bias_params.append(value)
+                bias_param_names.append(key)
+            elif key in gn_param_nameset:
+                gn_params.append(value)
+                gn_param_names.append(key)
             else:
                 nonbias_params.append(value)
+                nonbias_param_names.append(key)
+        else:
+            nograd_param_names.append(key)
+    assert (gn_param_nameset - set(nograd_param_names) - set(bias_param_names)) == set(gn_param_names)
+
+    # Learning rate of 0 is a dummy value to be set properly at the start of training
     params = [
         {'params': nonbias_params,
-         'lr': cfg.SOLVER.BASE_LR,
+         'lr': 0,
          'weight_decay': cfg.SOLVER.WEIGHT_DECAY},
         {'params': bias_params,
-         'lr': cfg.SOLVER.BASE_LR * (cfg.SOLVER.BIAS_DOUBLE_LR + 1),
-         'weight_decay': cfg.SOLVER.WEIGHT_DECAY if cfg.SOLVER.BIAS_WEIGHT_DECAY else 0}
+         'lr': 0 * (cfg.SOLVER.BIAS_DOUBLE_LR + 1),
+         'weight_decay': cfg.SOLVER.WEIGHT_DECAY if cfg.SOLVER.BIAS_WEIGHT_DECAY else 0},
+        {'params': gn_params,
+         'lr': 0,
+         'weight_decay': cfg.SOLVER.WEIGHT_DECAY_GN}
     ]
+    # names of paramerters for each paramter
+    param_names = [nonbias_param_names, bias_param_names, gn_param_names]
 
     if cfg.SOLVER.TYPE == "SGD":
         optimizer = torch.optim.SGD(params, momentum=cfg.SOLVER.MOMENTUM)
@@ -258,21 +306,19 @@ def main():
         checkpoint = torch.load(load_name, map_location=lambda storage, loc: storage)
         net_utils.load_ckpt(maskRCNN, checkpoint['model'])
         if args.resume:
-            assert checkpoint['iters_per_epoch'] == train_size // args.batch_size, \
-                "iters_per_epoch should match for resume"
+            args.start_step = checkpoint['step'] + 1
+            if 'train_size' in checkpoint:  # For backward compatibility
+                if checkpoint['train_size'] != train_size:
+                    print('train_size value: %d different from the one in checkpoint: %d'
+                          % (train_size, checkpoint['train_size']))
+
+            # reorder the params in optimizer checkpoint's params_groups if needed
+            # misc_utils.ensure_optimizer_ckpt_params_order(param_names, checkpoint)
+
             # There is a bug in optimizer.load_state_dict on Pytorch 0.3.1.
             # However it's fixed on master.
-            # optimizer.load_state_dict(checkpoint['optimizer'])
-            misc_utils.load_optimizer_state_dict(optimizer, checkpoint['optimizer'])
-            if checkpoint['step'] == (checkpoint['iters_per_epoch'] - 1):
-                # Resume from end of an epoch
-                args.start_epoch = checkpoint['epoch'] + 1
-                args.start_iter = 0
-            else:
-                # Resume from the middle of an epoch.
-                # NOTE: dataloader is not synced with previous state
-                args.start_epoch = checkpoint['epoch']
-                args.start_iter = checkpoint['step'] + 1
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            # misc_utils.load_optimizer_state_dict(optimizer, checkpoint['optimizer'])
         del checkpoint
         torch.cuda.empty_cache()
 
@@ -286,7 +332,7 @@ def main():
                                  minibatch=True)
 
     ### Training Setups ###
-    args.run_name = misc_utils.get_run_name()
+    args.run_name = misc_utils.get_run_name() + '_step'
     output_dir = misc_utils.get_output_dir(args, args.run_name)
     args.cfg_filename = os.path.basename(args.cfg_file)
 
@@ -306,64 +352,88 @@ def main():
     ### Training Loop ###
     maskRCNN.train()
 
+    CHECKPOINT_PERIOD = int(cfg.TRAIN.SNAPSHOT_ITERS / cfg.NUM_GPUS)
+
+    # Set index for decay steps
+    decay_steps_ind = None
+    for i in range(1, len(cfg.SOLVER.STEPS)):
+        if cfg.SOLVER.STEPS[i] >= args.start_step:
+            decay_steps_ind = i
+            break
+    if decay_steps_ind is None:
+        decay_steps_ind = len(cfg.SOLVER.STEPS)
+
     training_stats = TrainingStats(
         args,
         args.disp_interval,
         tblogger if args.use_tfboard and not args.no_save else None)
-
-    iters_per_epoch = int(train_size / args.batch_size)  # drop last
-    args.iters_per_epoch = iters_per_epoch
-    ckpt_interval_per_epoch = iters_per_epoch // args.ckpt_num_per_epoch
     try:
         logger.info('Training starts !')
-        args.step = args.start_iter
-        global_step = iters_per_epoch * args.start_epoch + args.step
-        for args.epoch in range(args.start_epoch, args.start_epoch + args.num_epochs):
-            # ---- Start of epoch ----
+        step = args.start_step
+        for step in range(args.start_step, cfg.SOLVER.MAX_ITER):
 
-            # adjust learning rate
-            if args.lr_decay_epochs and args.epoch == args.lr_decay_epochs[0] and args.start_iter == 0:
-                args.lr_decay_epochs.pop(0)
-                net_utils.decay_learning_rate(optimizer, lr, cfg.SOLVER.GAMMA)
-                lr *= cfg.SOLVER.GAMMA
+            # Warm up
+            if step < cfg.SOLVER.WARM_UP_ITERS:
+                method = cfg.SOLVER.WARM_UP_METHOD
+                if method == 'constant':
+                    warmup_factor = cfg.SOLVER.WARM_UP_FACTOR
+                elif method == 'linear':
+                    alpha = step / cfg.SOLVER.WARM_UP_ITERS
+                    warmup_factor = cfg.SOLVER.WARM_UP_FACTOR * (1 - alpha) + alpha
+                else:
+                    raise KeyError('Unknown SOLVER.WARM_UP_METHOD: {}'.format(method))
+                lr_new = cfg.SOLVER.BASE_LR * warmup_factor
+                net_utils.update_learning_rate(optimizer, lr, lr_new)
+                lr = optimizer.param_groups[0]['lr']
+                assert lr == lr_new
+            elif step == cfg.SOLVER.WARM_UP_ITERS:
+                net_utils.update_learning_rate(optimizer, lr, cfg.SOLVER.BASE_LR)
+                lr = optimizer.param_groups[0]['lr']
+                assert lr == cfg.SOLVER.BASE_LR
 
-            for args.step, input_data in zip(range(args.start_iter, iters_per_epoch), dataloader):
+            # Learning rate decay
+            if decay_steps_ind < len(cfg.SOLVER.STEPS) and \
+                    step == cfg.SOLVER.STEPS[decay_steps_ind]:
+                logger.info('Decay the learning on step %d', step)
+                lr_new = lr * cfg.SOLVER.GAMMA
+                net_utils.update_learning_rate(optimizer, lr, lr_new)
+                lr = optimizer.param_groups[0]['lr']
+                assert lr == lr_new
+                decay_steps_ind += 1
+
+            training_stats.IterTic()
+            optimizer.zero_grad()
+            for inner_iter in range(args.iter_size):
+                try:
+                    input_data = next(dataiterator)
+                except StopIteration:
+                    dataiterator = iter(dataloader)
+                    input_data = next(dataiterator)
 
                 for key in input_data:
                     if key != 'roidb': # roidb is a list of ndarrays with inconsistent length
                         input_data[key] = list(map(Variable, input_data[key]))
 
-                training_stats.IterTic()
                 net_outputs = maskRCNN(**input_data)
-                training_stats.UpdateIterStats(net_outputs)
+                training_stats.UpdateIterStats(net_outputs, inner_iter)
                 loss = net_outputs['total_loss']
-                optimizer.zero_grad()
                 loss.backward()
-                optimizer.step()
-                training_stats.IterToc()
+            optimizer.step()
+            training_stats.IterToc()
 
-                if (args.step+1) % ckpt_interval_per_epoch == 0:
-                    net_utils.save_ckpt(output_dir, args, maskRCNN, optimizer)
+            training_stats.LogIterStats(step, lr)
 
-                if args.step % args.disp_interval == 0:
-                    log_training_stats(training_stats, global_step, lr)
-
-                global_step += 1
-
-            # ---- End of epoch ----
-            # save checkpoint
-            net_utils.save_ckpt(output_dir, args, maskRCNN, optimizer)
-            # reset starting iter number after first epoch
-            args.start_iter = 0
+            if (step+1) % CHECKPOINT_PERIOD == 0:
+                save_ckpt(output_dir, args, step, train_size, maskRCNN, optimizer)
 
         # ---- Training ends ----
-        if iters_per_epoch % args.disp_interval != 0:
-            # log last stats at the end
-            log_training_stats(training_stats, global_step, lr)
+        # Save last checkpoint
+        save_ckpt(output_dir, args, step, train_size, maskRCNN, optimizer)
 
     except (RuntimeError, KeyboardInterrupt):
+        del dataiterator
         logger.info('Save ckpt on exception ...')
-        net_utils.save_ckpt(output_dir, args, maskRCNN, optimizer)
+        save_ckpt(output_dir, args, step, train_size, maskRCNN, optimizer)
         logger.info('Save ckpt done.')
         stack_trace = traceback.format_exc()
         print(stack_trace)
@@ -371,13 +441,6 @@ def main():
     finally:
         if args.use_tfboard and not args.no_save:
             tblogger.close()
-
-
-def log_training_stats(training_stats, global_step, lr):
-    stats = training_stats.GetStats(global_step, lr)
-    log_stats(stats, training_stats.misc_args)
-    if training_stats.tblogger:
-        training_stats.tb_log_stats(stats, global_step)
 
 
 if __name__ == '__main__':
