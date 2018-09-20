@@ -11,9 +11,7 @@ from core.config import cfg
 from model.roi_pooling.functions.roi_pool import RoIPoolFunction
 from model.roi_crop.functions.roi_crop import RoICropFunction
 from modeling.roi_xfrom.roi_align.functions.roi_align import RoIAlignFunction
-#import modeling.rpn_heads as rpn_heads
-import modeling.ssw_heads as ssw_heads
-import modeling.fast_rcnn_heads as fast_rcnn_heads
+import modeling.wsddn_heads as wsddn_heads
 import utils.blob as blob_utils
 import utils.net as net_utils
 import utils.resnet_weights_helper as resnet_utils
@@ -78,18 +76,11 @@ class Generalized_RCNN(nn.Module):
         # Backbone for feature extraction
         self.Conv_Body = get_func(cfg.MODEL.CONV_BODY)()
 
-        # Region Proposal Network
-        #if cfg.RPN.RPN_ON:
-        #    self.RPN = rpn_heads.generic_rpn_outputs(
-        #        self.Conv_Body.dim_out, self.Conv_Body.spatial_scale)
-        #self.SSW = ssw_heads.generic_ssw_outputs()
-
-        # BBOX Branch
-        #if not cfg.MODEL.RPN_ONLY:
         self.Box_Head = get_func(cfg.FAST_RCNN.ROI_BOX_HEAD)(
             self.Conv_Body.dim_out, self.roi_feature_transform, self.Conv_Body.spatial_scale)
-        self.Box_Outs = fast_rcnn_heads.fast_rcnn_outputs(
+        self.Box_Outs = wsddn_heads.wsddn_outputs(
                 self.Box_Head.dim_out)
+        
 
         self._init_modules()
 
@@ -102,14 +93,14 @@ class Generalized_RCNN(nn.Module):
             for p in self.Conv_Body.parameters():
                 p.requires_grad = False
 
-    def forward(self, data, im_info=None, rois=None, labels_int32=None, bbox_targets=None, bbox_inside_weights=None, bbox_outside_weights=None):
+    def forward(self, data, im_info=None, rois=None, labels_int32=None):
         if cfg.PYTORCH_VERSION_LESS_THAN_040:
-            return self._forward(data, im_info, rois, labels_int32, bbox_targets, bbox_inside_weights, bbox_outside_weights)
+            return self._forward(data, im_info, rois, labels_int32)
         else:
             with torch.set_grad_enabled(self.training):
-                return self._forward(data, im_info, rois, labels_int32, bbox_targets, bbox_inside_weights, bbox_outside_weights)
+                return self._forward(data, im_info, rois, labels_int32)
 
-    def _forward(self, data, im_info, rois, labels_int32, bbox_targets, bbox_inside_weights, bbox_outside_weights):
+    def _forward(self, data, im_info, rois, labels_int32):
         im_data = data
         #if self.training:
         #    roidb = list(map(lambda x: blob_utils.deserialize(x)[0], roidb))
@@ -130,21 +121,19 @@ class Generalized_RCNN(nn.Module):
             box_feat, res5_feat = self.Box_Head(blob_conv, rois)
         else:
             box_feat = self.Box_Head(blob_conv, rois)
-        cls_score, bbox_pred = self.Box_Outs(box_feat)
 
         if self.training:
+
+            y = self.Box_Outs(box_feat)
+
             return_dict['losses'] = {}
             return_dict['metrics'] = {}
 
             # bbox loss
-            #loss_cls, loss_bbox, accuracy_cls = fast_rcnn_heads.fast_rcnn_losses(
-            #    cls_score, bbox_pred, rpn_ret['labels_int32'], rpn_ret['bbox_targets'],
-            #    rpn_ret['bbox_inside_weights'], rpn_ret['bbox_outside_weights'])
-            loss_cls, loss_bbox, accuracy_cls = fast_rcnn_heads.fast_rcnn_losses(
-                 cls_score, bbox_pred, labels_int32, bbox_targets, bbox_inside_weights, bbox_outside_weights)
-            return_dict['losses']['loss_cls'] = loss_cls
-            return_dict['losses']['loss_bbox'] = loss_bbox
-            return_dict['metrics']['accuracy_cls'] = accuracy_cls
+            loss = wsddn_heads.wsddn_losses(
+                 y, labels_int32)
+            return_dict['losses']['cls_loss'] = loss
+            return_dict['metrics']['cls_loss'] = loss
 
             # pytorch0.4 bug on gathering scalar(0-dim) tensors
             for k, v in return_dict['losses'].items():
@@ -154,9 +143,10 @@ class Generalized_RCNN(nn.Module):
 
         else:
             # Testing
+            bbox_mul = self.Box_Outs(box_feat)
+
             return_dict['rois'] = rois
-            return_dict['cls_score'] = cls_score
-            return_dict['bbox_pred'] = bbox_pred
+            return_dict['cls_score'] = bbox_mul
 
         return return_dict
 

@@ -30,24 +30,7 @@ class RoiDataLoader(data.Dataset):
 
         # Squeeze batch dim
         for key in blobs:
-            if key != 'roidb' and key != 'rois':
-                blobs[key] = blobs[key].squeeze(axis=0)
-
-        if self._roidb[index]['need_crop']:
-            self.crop_data(blobs, ratio)
-            # Check bounding box
-            entry = blobs['roidb'][0]
-            boxes = entry['boxes']
-            invalid = (boxes[:, 0] == boxes[:, 2]) | (boxes[:, 1] == boxes[:, 3])
-            valid_inds = np.nonzero(~ invalid)[0]
-            if len(valid_inds) < len(boxes):
-                for key in ['boxes', 'gt_classes', 'seg_areas', 'gt_overlaps', 'is_crowd',
-                            'box_to_gt_ind_map', 'gt_keypoints']:
-                    if key in entry:
-                        entry[key] = entry[key][valid_inds]
-                entry['segms'] = [entry['segms'][ind] for ind in valid_inds]
-
-        blobs['roidb'] = blob_utils.serialize(blobs['roidb'])  # CHECK: maybe we can serialize in collate_fn
+            blobs[key] = blobs[key].squeeze()
 
         return blobs
 
@@ -235,15 +218,23 @@ def collate_minibatch(list_of_blobs):
     Batch = {key: [] for key in list_of_blobs[0]}
     # Because roidb consists of entries of variable length, it can't be batch into a tensor.
     # So we keep roidb in the type of "list of ndarray".
-    list_of_roidb = [blobs.pop('roidb') for blobs in list_of_blobs]
+    #list_of_roidb = [blobs.pop('roidb') for blobs in list_of_blobs]
+    list_of_roidb = [blobs for blobs in list_of_blobs]
     for i in range(0, len(list_of_blobs), cfg.TRAIN.IMS_PER_BATCH):
         mini_list = list_of_blobs[i:(i + cfg.TRAIN.IMS_PER_BATCH)]
         # Pad image data
         mini_list = pad_image_data(mini_list)
         minibatch = default_collate(mini_list)
-        minibatch['roidb'] = list_of_roidb[i:(i + cfg.TRAIN.IMS_PER_BATCH)]
+        #minibatch['rois'] = minibatch['rois'].squeeze()
+        #minibatch['roidb'] = list_of_roidb[i:(i + cfg.TRAIN.IMS_PER_BATCH)]
         for key in minibatch:
-            Batch[key].append(minibatch[key])
+            if key != 'data':
+                Batch[key].append(minibatch[key].squeeze())
+            else:
+                Batch[key].append(minibatch[key])
+
+    #for key in Batch:
+    #    print(key, Batch[key][0].shape)
 
     return Batch
 

@@ -26,14 +26,14 @@ class single_scale_ssw_outputs(nn.Module):
 
         self.SSW_GenerateProposals = GenerateSSWProposalsOp()
 
-    def forward(self, im_info, roidb=None):
+    def forward(self, roidb=None):
         """
         x: feature maps from the backbone network. (Variable)
         im_info: (CPU Variable)
         roidb: (list of ndarray)
         """
 
-        ssw_roi = self.SSW_GenerateProposals(im_info, roidb)
+        ssw_roi = self.SSW_GenerateProposals(roidb)
 
         return_dict = {
             'rois': ssw_roi

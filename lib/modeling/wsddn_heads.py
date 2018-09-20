@@ -8,15 +8,14 @@ from core.config import cfg
 import nn as mynn
 import utils.net as net_utils
 
+from iou_cal import assign_iou
+from featuredist_cal import assign_featuredist
 
-class fast_rcnn_outputs(nn.Module):
+class wsddn_outputs(nn.Module):
     def __init__(self, dim_in):
         super().__init__()
         self.cls_score = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
-        if cfg.MODEL.CLS_AGNOSTIC_BBOX_REG:  # bg and fg
-            self.bbox_pred = nn.Linear(dim_in, 4 * 2)
-        else:
-            self.bbox_pred = nn.Linear(dim_in, 4 * cfg.MODEL.NUM_CLASSES)
+        self.bbox_pred = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
 
         self._init_weights()
 
@@ -40,35 +39,106 @@ class fast_rcnn_outputs(nn.Module):
         if x.dim() == 4:
             x = x.squeeze(3).squeeze(2)
         cls_score = self.cls_score(x)
-        if not self.training:
-            cls_score = F.softmax(cls_score, dim=1)
+        cls_score = F.softmax(cls_score, dim=1)
         bbox_pred = self.bbox_pred(x)
+        bbox_pred = F.softmax(bbox_pred, dim=0)
 
-        return cls_score, bbox_pred
+        bbox_mul = cls_score * bbox_pred
+
+        return bbox_mul
+
+        #if self.training:
+        #    y = bbox_mul.sum(dim=0)
+        #    return y
+
+        #else:
+        #    return bbox_mul
+
+'''
+#    def forward(self, is_train, req, in_data, out_data, aux):
+#
+#        bbox_r = in_data[0].asnumpy().astype(np.float, copy=False)
+#        bbox_c = in_data[1].asnumpy().astype(np.float, copy=False)
+#        dim_r = bbox_r.shape[0]
+#        dim_c = bbox_c.shape[0]
+#
+#        ious = np.zeros((dim_r, dim_c), dtype=np.float)
+#        assign_iou(bbox_r, bbox_c, ious)
+#
+#        self.assign(out_data[0], req[0], ious)
+
+'''
 
 
-def fast_rcnn_losses(cls_score, bbox_pred, label_int32, bbox_targets,
-                     bbox_inside_weights, bbox_outside_weights):
-    device_id = cls_score.get_device()
-    #rois_label = Variable(torch.from_numpy(label_int32.astype('int64'))).cuda(device_id)
-    rois_label = label_int32.cuda(device_id).long()
-    loss_cls = F.cross_entropy(cls_score, rois_label)
+def wsddn_losses(bbox_mul, label_int32, rois, fc):
 
-    #bbox_targets = Variable(torch.from_numpy(bbox_targets)).cuda(device_id)
-    #bbox_inside_weights = Variable(torch.from_numpy(bbox_inside_weights)).cuda(device_id)
-    #bbox_outside_weights = Variable(torch.from_numpy(bbox_outside_weights)).cuda(device_id)
-    bbox_targets = bbox_targets.cuda(device_id)
-    bbox_inside_weights = bbox_inside_weights.cuda(device_id)
-    bbox_outside_weights = bbox_outside_weights.cuda(device_id)
+    y = bbox_mul.sum(dim=0)
 
-    loss_bbox = net_utils.smooth_l1_loss(
-        bbox_pred, bbox_targets, bbox_inside_weights, bbox_outside_weights)
+    device_id = y.get_device()
+    label = label_int32.long()[:, None]
+    zeros = torch.zeros(label.shape[0], cfg.MODEL.NUM_CLASSES).cuda(device_id)
+    label = zeros.scatter_(1, label, 1) # one_hot
+    
+    label, _ = label.max(dim=0)
+    label = label[1:]
+    y = y[1:]
 
-    # class accuracy
-    cls_preds = cls_score.max(dim=1)[1].type_as(rois_label)
-    accuracy_cls = cls_preds.eq(rois_label).float().mean(dim=0)
+    cls_loss = -label * torch.log(y + 1e-6) - (1-label) * torch.log(1 - y + 1e-6)
+    cls_loss = cls_loss.sum()
 
-    return loss_cls, loss_bbox, accuracy_cls
+
+    # sp loss
+    '''
+#    def forward(self, is_train, req, in_data, out_data, aux):
+#
+#        bbox_r = in_data[0].asnumpy().astype(np.float, copy=False)
+#        bbox_c = in_data[1].asnumpy().astype(np.float, copy=False)
+#        dim_r = bbox_r.shape[0]
+#        dim_c = bbox_c.shape[0]
+#
+#        ious = np.zeros((dim_r, dim_c), dtype=np.float)
+#        assign_iou(bbox_r, bbox_c, ious)
+#
+#        self.assign(out_data[0], req[0], ious)
+
+            ious = mx.sym.Custom(op_type='iou', threshold=0.6, bbox_r=rois, bbox_c=rois_take) # r * c
+            featuredist = mx.sym.Custom(op_type='featuredist', feature_r=fc_new_2_relu, feature_c=fc_take) # r * c
+            i_times_f = ious * featuredist # r * c
+            i_times_f = mx.sym.broadcast_mul(maxprob, i_times_f) 
+            i_times_f = mx.sym.broadcast_mul(label, i_times_f)
+            sp_loss = mx.sym.sum(i_times_f) / num_classes
+            sp_loss = mx.sym.MakeLoss(name='sp_loss', data=sp_loss, grad_scale=1)
+    '''
+
+    x = bbox_mul[1:]
+    idx = x.argmax(dim=0)
+    maxprob = x.max(dim=0)
+    maxprob = 0.5 * maxprob ** 2
+
+    fc = fc.numpy()
+    rois = rois.numpy()
+
+    fc_take = fc[idx, :]
+    rois_take = rois[idx, :]
+
+    dim_r = rois.shape[0]
+    dim_c = rois_take.shape[0]
+
+    ious = np.zeros((dim_r, dim_c), dtype=np.float)
+    assign_iou(rois, rois_take, ious)
+
+    featuredist = np.zeros((dim_r, dim_c), dtype=np.float)
+    assign_featuredist(fc, fc_take, featuredist)
+
+    ious = Variable(torch.from_numpy(ious)).cuda()
+    featuredist = Variable(torch.from_umpy(featuredist)).cuda()
+
+    i_times_f = ious * featuredist
+    i_times_f = maxprob * i_times_f
+    i_times_f = label * i_times_f
+    sp_loss = i_times_f.sum()
+
+    return cls_loss, sp_loss
 
 
 # ---------------------------------------------------------------------------- #

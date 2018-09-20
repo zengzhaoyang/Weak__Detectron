@@ -1,8 +1,8 @@
 MODEL:
   TYPE: generalized_rcnn
   CONV_BODY: ResNet.ResNet50_conv4_body
-  FASTER_RCNN: false
-NUM_GPUS: 8
+  FASTER_RCNN: true
+NUM_GPUS: 4
 RESNETS:
   IMAGENET_PRETRAINED_WEIGHTS: 'data/pretrained_model/resnet50_caffe.pth'
 SOLVER:

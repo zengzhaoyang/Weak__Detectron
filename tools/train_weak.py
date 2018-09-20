@@ -23,8 +23,8 @@ import utils.net as net_utils
 import utils.misc as misc_utils
 from core.config import cfg, cfg_from_file, cfg_from_list, assert_and_infer_cfg
 from datasets.roidb import combined_roidb_for_training
-from roi_data.loader_fast import RoiDataLoader, MinibatchSampler, BatchSampler, collate_minibatch
-from modeling.model_fast_rcnn_builder import Generalized_RCNN
+from roi_data.loader_weak import RoiDataLoader, MinibatchSampler, BatchSampler, collate_minibatch
+from modeling.model_weak_builder import Generalized_RCNN
 from utils.detectron_weight_helper import load_detectron_weight
 from utils.logging import setup_logging
 from utils.timer import Timer
