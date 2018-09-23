@@ -159,6 +159,7 @@ def main():
     #else:
     #    raise ValueError("Unexpected args.dataset: {}".format(args.dataset))
     cfg.TRAIN.DATASETS= ('voc_2007_train', 'voc_2007_val', 'voc_2012_train', 'voc_2012_val')
+    #cfg.TRAIN.DATASETS = ('voc_2007_train', )
     cfg.MODEL.NUM_CLASSES = 21
 
     cfg_from_file(args.cfg_file)

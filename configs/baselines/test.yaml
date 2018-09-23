@@ -26,7 +26,9 @@ TRAIN:
 TEST:
   SCALE: 600
   MAX_SIZE: 1000
-  NMS: 0.5
+  NMS: 1.0
   #RPN_PRE_NMS_TOP_N: 6000
   #RPN_POST_NMS_TOP_N: 1000
-  PROPOSAL_FILES: ('data/selective_search_data/voc_2007_test.pkl',)
+  PROPOSAL_FILES: ('data/selective_search_data/voc_2007_test_ioc.pkl',)
+  BBOX_REG: false
+

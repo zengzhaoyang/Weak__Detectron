@@ -47,3 +47,12 @@ def assign_iou(np.ndarray[DTYPE_t, ndim=2] bbox_r, np.ndarray[DTYPE_t, ndim=2] b
         for j in range(dim_c):
             iou = caliou(bbox_r[i], bbox_c[j])
             ious[i, j] = iou > 0.6
+
+def assign_label(np.ndarray[DTYPE_t, ndim=1] img_label, np.ndarray[DTYPE_t, ndim=2] labels, np.ndarray[DTYPE_t, ndim=2] ious):
+    cdef int dim_r = labels.shape[0]
+    cdef int dim_c = ious.shape[1]
+    cdef int i, j, k
+    for i in range(dim_r):
+        for j in range(dim_c):
+            if ious[i, j] > 0.5 and img_label[j] == 1.:
+               labels[i, j + 1] = 1

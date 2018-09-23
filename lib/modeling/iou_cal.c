@@ -1639,12 +1639,15 @@ static const char __pyx_k_bbox_c[] = "bbox_c";
 static const char __pyx_k_bbox_r[] = "bbox_r";
 static const char __pyx_k_caliou[] = "caliou";
 static const char __pyx_k_import[] = "__import__";
+static const char __pyx_k_labels[] = "labels";
 static const char __pyx_k_iou_cal[] = "iou_cal";
+static const char __pyx_k_img_label[] = "img_label";
 static const char __pyx_k_ValueError[] = "ValueError";
 static const char __pyx_k_assign_iou[] = "assign_iou";
 static const char __pyx_k_ImportError[] = "ImportError";
 static const char __pyx_k_iou_cal_pyx[] = "iou_cal.pyx";
 static const char __pyx_k_RuntimeError[] = "RuntimeError";
+static const char __pyx_k_assign_label[] = "assign_label";
 static const char __pyx_k_cline_in_traceback[] = "cline_in_traceback";
 static const char __pyx_k_ndarray_is_not_C_contiguous[] = "ndarray is not C contiguous";
 static const char __pyx_k_Proposal_Operator_transform_anc[] = "\nProposal Operator transform anchor coordinates into ROI coordinates with prediction results on\nclassification probability and bounding box prediction results, and image size and scale information.\n";
@@ -1665,6 +1668,7 @@ static PyObject *__pyx_n_s_ValueError;
 static PyObject *__pyx_n_s_area1;
 static PyObject *__pyx_n_s_area2;
 static PyObject *__pyx_n_s_assign_iou;
+static PyObject *__pyx_n_s_assign_label;
 static PyObject *__pyx_n_s_bbox1;
 static PyObject *__pyx_n_s_bbox2;
 static PyObject *__pyx_n_s_bbox_c;
@@ -1676,6 +1680,7 @@ static PyObject *__pyx_n_s_dim_r;
 static PyObject *__pyx_n_s_float;
 static PyObject *__pyx_n_s_h;
 static PyObject *__pyx_n_s_i;
+static PyObject *__pyx_n_s_img_label;
 static PyObject *__pyx_n_s_import;
 static PyObject *__pyx_n_s_inter;
 static PyObject *__pyx_n_s_iou;
@@ -1684,6 +1689,7 @@ static PyObject *__pyx_kp_s_iou_cal_pyx;
 static PyObject *__pyx_n_s_ious;
 static PyObject *__pyx_n_s_j;
 static PyObject *__pyx_n_s_k;
+static PyObject *__pyx_n_s_labels;
 static PyObject *__pyx_n_s_main;
 static PyObject *__pyx_kp_u_ndarray_is_not_C_contiguous;
 static PyObject *__pyx_kp_u_ndarray_is_not_Fortran_contiguou;
@@ -1701,6 +1707,7 @@ static PyObject *__pyx_n_s_yy1;
 static PyObject *__pyx_n_s_yy2;
 static PyObject *__pyx_pf_7iou_cal_caliou(CYTHON_UNUSED PyObject *__pyx_self, PyArrayObject *__pyx_v_bbox1, PyArrayObject *__pyx_v_bbox2); /* proto */
 static PyObject *__pyx_pf_7iou_cal_2assign_iou(CYTHON_UNUSED PyObject *__pyx_self, PyArrayObject *__pyx_v_bbox_r, PyArrayObject *__pyx_v_bbox_c, PyArrayObject *__pyx_v_ious); /* proto */
+static PyObject *__pyx_pf_7iou_cal_4assign_label(CYTHON_UNUSED PyObject *__pyx_self, PyArrayObject *__pyx_v_img_label, PyArrayObject *__pyx_v_labels, PyArrayObject *__pyx_v_ious); /* proto */
 static int __pyx_pf_5numpy_7ndarray___getbuffer__(PyArrayObject *__pyx_v_self, Py_buffer *__pyx_v_info, int __pyx_v_flags); /* proto */
 static void __pyx_pf_5numpy_7ndarray_2__releasebuffer__(PyArrayObject *__pyx_v_self, Py_buffer *__pyx_v_info); /* proto */
 static PyObject *__pyx_float_0_6;
@@ -1715,8 +1722,10 @@ static PyObject *__pyx_tuple__8;
 static PyObject *__pyx_tuple__9;
 static PyObject *__pyx_tuple__10;
 static PyObject *__pyx_tuple__12;
+static PyObject *__pyx_tuple__14;
 static PyObject *__pyx_codeobj__11;
 static PyObject *__pyx_codeobj__13;
+static PyObject *__pyx_codeobj__15;
 /* Late includes */
 
 /* "iou_cal.pyx":25
@@ -2389,6 +2398,7 @@ static PyObject *__pyx_pf_7iou_cal_2assign_iou(CYTHON_UNUSED PyObject *__pyx_sel
  *         for j in range(dim_c):
  *             iou = caliou(bbox_r[i], bbox_c[j])             # <<<<<<<<<<<<<<
  *             ious[i, j] = iou > 0.6
+ * 
  */
       __pyx_t_8 = __Pyx_GetModuleGlobalName(__pyx_n_s_caliou); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 48, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_8);
@@ -2452,6 +2462,8 @@ static PyObject *__pyx_pf_7iou_cal_2assign_iou(CYTHON_UNUSED PyObject *__pyx_sel
  *         for j in range(dim_c):
  *             iou = caliou(bbox_r[i], bbox_c[j])
  *             ious[i, j] = iou > 0.6             # <<<<<<<<<<<<<<
+ * 
+ * def assign_label(np.ndarray[DTYPE_t, ndim=1] img_label, np.ndarray[DTYPE_t, ndim=2] labels, np.ndarray[DTYPE_t, ndim=2] ious):
  */
       __pyx_t_7 = PyObject_RichCompare(__pyx_v_iou, __pyx_float_0_6, Py_GT); __Pyx_XGOTREF(__pyx_t_7); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 49, __pyx_L1_error)
       __pyx_t_14 = __pyx_PyFloat_AsDouble(__pyx_t_7); if (unlikely((__pyx_t_14 == ((npy_double)-1)) && PyErr_Occurred())) __PYX_ERR(0, 49, __pyx_L1_error)
@@ -2510,6 +2522,299 @@ static PyObject *__pyx_pf_7iou_cal_2assign_iou(CYTHON_UNUSED PyObject *__pyx_sel
   __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_ious.rcbuffer->pybuffer);
   __pyx_L2:;
   __Pyx_XDECREF(__pyx_v_iou);
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* "iou_cal.pyx":51
+ *             ious[i, j] = iou > 0.6
+ * 
+ * def assign_label(np.ndarray[DTYPE_t, ndim=1] img_label, np.ndarray[DTYPE_t, ndim=2] labels, np.ndarray[DTYPE_t, ndim=2] ious):             # <<<<<<<<<<<<<<
+ *     cdef int dim_r = labels.shape[0]
+ *     cdef int dim_c = ious.shape[1]
+ */
+
+/* Python wrapper */
+static PyObject *__pyx_pw_7iou_cal_5assign_label(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
+static PyMethodDef __pyx_mdef_7iou_cal_5assign_label = {"assign_label", (PyCFunction)__pyx_pw_7iou_cal_5assign_label, METH_VARARGS|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_7iou_cal_5assign_label(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
+  PyArrayObject *__pyx_v_img_label = 0;
+  PyArrayObject *__pyx_v_labels = 0;
+  PyArrayObject *__pyx_v_ious = 0;
+  PyObject *__pyx_r = 0;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("assign_label (wrapper)", 0);
+  {
+    static PyObject **__pyx_pyargnames[] = {&__pyx_n_s_img_label,&__pyx_n_s_labels,&__pyx_n_s_ious,0};
+    PyObject* values[3] = {0,0,0};
+    if (unlikely(__pyx_kwds)) {
+      Py_ssize_t kw_args;
+      const Py_ssize_t pos_args = PyTuple_GET_SIZE(__pyx_args);
+      switch (pos_args) {
+        case  3: values[2] = PyTuple_GET_ITEM(__pyx_args, 2);
+        CYTHON_FALLTHROUGH;
+        case  2: values[1] = PyTuple_GET_ITEM(__pyx_args, 1);
+        CYTHON_FALLTHROUGH;
+        case  1: values[0] = PyTuple_GET_ITEM(__pyx_args, 0);
+        CYTHON_FALLTHROUGH;
+        case  0: break;
+        default: goto __pyx_L5_argtuple_error;
+      }
+      kw_args = PyDict_Size(__pyx_kwds);
+      switch (pos_args) {
+        case  0:
+        if (likely((values[0] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_img_label)) != 0)) kw_args--;
+        else goto __pyx_L5_argtuple_error;
+        CYTHON_FALLTHROUGH;
+        case  1:
+        if (likely((values[1] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_labels)) != 0)) kw_args--;
+        else {
+          __Pyx_RaiseArgtupleInvalid("assign_label", 1, 3, 3, 1); __PYX_ERR(0, 51, __pyx_L3_error)
+        }
+        CYTHON_FALLTHROUGH;
+        case  2:
+        if (likely((values[2] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_ious)) != 0)) kw_args--;
+        else {
+          __Pyx_RaiseArgtupleInvalid("assign_label", 1, 3, 3, 2); __PYX_ERR(0, 51, __pyx_L3_error)
+        }
+      }
+      if (unlikely(kw_args > 0)) {
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "assign_label") < 0)) __PYX_ERR(0, 51, __pyx_L3_error)
+      }
+    } else if (PyTuple_GET_SIZE(__pyx_args) != 3) {
+      goto __pyx_L5_argtuple_error;
+    } else {
+      values[0] = PyTuple_GET_ITEM(__pyx_args, 0);
+      values[1] = PyTuple_GET_ITEM(__pyx_args, 1);
+      values[2] = PyTuple_GET_ITEM(__pyx_args, 2);
+    }
+    __pyx_v_img_label = ((PyArrayObject *)values[0]);
+    __pyx_v_labels = ((PyArrayObject *)values[1]);
+    __pyx_v_ious = ((PyArrayObject *)values[2]);
+  }
+  goto __pyx_L4_argument_unpacking_done;
+  __pyx_L5_argtuple_error:;
+  __Pyx_RaiseArgtupleInvalid("assign_label", 1, 3, 3, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 51, __pyx_L3_error)
+  __pyx_L3_error:;
+  __Pyx_AddTraceback("iou_cal.assign_label", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __Pyx_RefNannyFinishContext();
+  return NULL;
+  __pyx_L4_argument_unpacking_done:;
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_img_label), __pyx_ptype_5numpy_ndarray, 1, "img_label", 0))) __PYX_ERR(0, 51, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_labels), __pyx_ptype_5numpy_ndarray, 1, "labels", 0))) __PYX_ERR(0, 51, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_ious), __pyx_ptype_5numpy_ndarray, 1, "ious", 0))) __PYX_ERR(0, 51, __pyx_L1_error)
+  __pyx_r = __pyx_pf_7iou_cal_4assign_label(__pyx_self, __pyx_v_img_label, __pyx_v_labels, __pyx_v_ious);
+
+  /* function exit code */
+  goto __pyx_L0;
+  __pyx_L1_error:;
+  __pyx_r = NULL;
+  __pyx_L0:;
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static PyObject *__pyx_pf_7iou_cal_4assign_label(CYTHON_UNUSED PyObject *__pyx_self, PyArrayObject *__pyx_v_img_label, PyArrayObject *__pyx_v_labels, PyArrayObject *__pyx_v_ious) {
+  int __pyx_v_dim_r;
+  int __pyx_v_dim_c;
+  int __pyx_v_i;
+  int __pyx_v_j;
+  __Pyx_LocalBuf_ND __pyx_pybuffernd_img_label;
+  __Pyx_Buffer __pyx_pybuffer_img_label;
+  __Pyx_LocalBuf_ND __pyx_pybuffernd_ious;
+  __Pyx_Buffer __pyx_pybuffer_ious;
+  __Pyx_LocalBuf_ND __pyx_pybuffernd_labels;
+  __Pyx_Buffer __pyx_pybuffer_labels;
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  int __pyx_t_1;
+  int __pyx_t_2;
+  int __pyx_t_3;
+  int __pyx_t_4;
+  int __pyx_t_5;
+  int __pyx_t_6;
+  int __pyx_t_7;
+  Py_ssize_t __pyx_t_8;
+  Py_ssize_t __pyx_t_9;
+  int __pyx_t_10;
+  int __pyx_t_11;
+  Py_ssize_t __pyx_t_12;
+  Py_ssize_t __pyx_t_13;
+  Py_ssize_t __pyx_t_14;
+  __Pyx_RefNannySetupContext("assign_label", 0);
+  __pyx_pybuffer_img_label.pybuffer.buf = NULL;
+  __pyx_pybuffer_img_label.refcount = 0;
+  __pyx_pybuffernd_img_label.data = NULL;
+  __pyx_pybuffernd_img_label.rcbuffer = &__pyx_pybuffer_img_label;
+  __pyx_pybuffer_labels.pybuffer.buf = NULL;
+  __pyx_pybuffer_labels.refcount = 0;
+  __pyx_pybuffernd_labels.data = NULL;
+  __pyx_pybuffernd_labels.rcbuffer = &__pyx_pybuffer_labels;
+  __pyx_pybuffer_ious.pybuffer.buf = NULL;
+  __pyx_pybuffer_ious.refcount = 0;
+  __pyx_pybuffernd_ious.data = NULL;
+  __pyx_pybuffernd_ious.rcbuffer = &__pyx_pybuffer_ious;
+  {
+    __Pyx_BufFmt_StackElem __pyx_stack[1];
+    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_img_label.rcbuffer->pybuffer, (PyObject*)__pyx_v_img_label, &__Pyx_TypeInfo_nn___pyx_t_7iou_cal_DTYPE_t, PyBUF_FORMAT| PyBUF_STRIDES, 1, 0, __pyx_stack) == -1)) __PYX_ERR(0, 51, __pyx_L1_error)
+  }
+  __pyx_pybuffernd_img_label.diminfo[0].strides = __pyx_pybuffernd_img_label.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_img_label.diminfo[0].shape = __pyx_pybuffernd_img_label.rcbuffer->pybuffer.shape[0];
+  {
+    __Pyx_BufFmt_StackElem __pyx_stack[1];
+    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_labels.rcbuffer->pybuffer, (PyObject*)__pyx_v_labels, &__Pyx_TypeInfo_nn___pyx_t_7iou_cal_DTYPE_t, PyBUF_FORMAT| PyBUF_STRIDES| PyBUF_WRITABLE, 2, 0, __pyx_stack) == -1)) __PYX_ERR(0, 51, __pyx_L1_error)
+  }
+  __pyx_pybuffernd_labels.diminfo[0].strides = __pyx_pybuffernd_labels.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_labels.diminfo[0].shape = __pyx_pybuffernd_labels.rcbuffer->pybuffer.shape[0]; __pyx_pybuffernd_labels.diminfo[1].strides = __pyx_pybuffernd_labels.rcbuffer->pybuffer.strides[1]; __pyx_pybuffernd_labels.diminfo[1].shape = __pyx_pybuffernd_labels.rcbuffer->pybuffer.shape[1];
+  {
+    __Pyx_BufFmt_StackElem __pyx_stack[1];
+    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_ious.rcbuffer->pybuffer, (PyObject*)__pyx_v_ious, &__Pyx_TypeInfo_nn___pyx_t_7iou_cal_DTYPE_t, PyBUF_FORMAT| PyBUF_STRIDES, 2, 0, __pyx_stack) == -1)) __PYX_ERR(0, 51, __pyx_L1_error)
+  }
+  __pyx_pybuffernd_ious.diminfo[0].strides = __pyx_pybuffernd_ious.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_ious.diminfo[0].shape = __pyx_pybuffernd_ious.rcbuffer->pybuffer.shape[0]; __pyx_pybuffernd_ious.diminfo[1].strides = __pyx_pybuffernd_ious.rcbuffer->pybuffer.strides[1]; __pyx_pybuffernd_ious.diminfo[1].shape = __pyx_pybuffernd_ious.rcbuffer->pybuffer.shape[1];
+
+  /* "iou_cal.pyx":52
+ * 
+ * def assign_label(np.ndarray[DTYPE_t, ndim=1] img_label, np.ndarray[DTYPE_t, ndim=2] labels, np.ndarray[DTYPE_t, ndim=2] ious):
+ *     cdef int dim_r = labels.shape[0]             # <<<<<<<<<<<<<<
+ *     cdef int dim_c = ious.shape[1]
+ *     cdef int i, j, k
+ */
+  __pyx_v_dim_r = (__pyx_v_labels->dimensions[0]);
+
+  /* "iou_cal.pyx":53
+ * def assign_label(np.ndarray[DTYPE_t, ndim=1] img_label, np.ndarray[DTYPE_t, ndim=2] labels, np.ndarray[DTYPE_t, ndim=2] ious):
+ *     cdef int dim_r = labels.shape[0]
+ *     cdef int dim_c = ious.shape[1]             # <<<<<<<<<<<<<<
+ *     cdef int i, j, k
+ *     for i in range(dim_r):
+ */
+  __pyx_v_dim_c = (__pyx_v_ious->dimensions[1]);
+
+  /* "iou_cal.pyx":55
+ *     cdef int dim_c = ious.shape[1]
+ *     cdef int i, j, k
+ *     for i in range(dim_r):             # <<<<<<<<<<<<<<
+ *         for j in range(dim_c):
+ *             if ious[i, j] > 0.5 and img_label[j] == 1.:
+ */
+  __pyx_t_1 = __pyx_v_dim_r;
+  __pyx_t_2 = __pyx_t_1;
+  for (__pyx_t_3 = 0; __pyx_t_3 < __pyx_t_2; __pyx_t_3+=1) {
+    __pyx_v_i = __pyx_t_3;
+
+    /* "iou_cal.pyx":56
+ *     cdef int i, j, k
+ *     for i in range(dim_r):
+ *         for j in range(dim_c):             # <<<<<<<<<<<<<<
+ *             if ious[i, j] > 0.5 and img_label[j] == 1.:
+ *                labels[i, j + 1] = 1
+ */
+    __pyx_t_4 = __pyx_v_dim_c;
+    __pyx_t_5 = __pyx_t_4;
+    for (__pyx_t_6 = 0; __pyx_t_6 < __pyx_t_5; __pyx_t_6+=1) {
+      __pyx_v_j = __pyx_t_6;
+
+      /* "iou_cal.pyx":57
+ *     for i in range(dim_r):
+ *         for j in range(dim_c):
+ *             if ious[i, j] > 0.5 and img_label[j] == 1.:             # <<<<<<<<<<<<<<
+ *                labels[i, j + 1] = 1
+ */
+      __pyx_t_8 = __pyx_v_i;
+      __pyx_t_9 = __pyx_v_j;
+      __pyx_t_10 = -1;
+      if (__pyx_t_8 < 0) {
+        __pyx_t_8 += __pyx_pybuffernd_ious.diminfo[0].shape;
+        if (unlikely(__pyx_t_8 < 0)) __pyx_t_10 = 0;
+      } else if (unlikely(__pyx_t_8 >= __pyx_pybuffernd_ious.diminfo[0].shape)) __pyx_t_10 = 0;
+      if (__pyx_t_9 < 0) {
+        __pyx_t_9 += __pyx_pybuffernd_ious.diminfo[1].shape;
+        if (unlikely(__pyx_t_9 < 0)) __pyx_t_10 = 1;
+      } else if (unlikely(__pyx_t_9 >= __pyx_pybuffernd_ious.diminfo[1].shape)) __pyx_t_10 = 1;
+      if (unlikely(__pyx_t_10 != -1)) {
+        __Pyx_RaiseBufferIndexError(__pyx_t_10);
+        __PYX_ERR(0, 57, __pyx_L1_error)
+      }
+      __pyx_t_11 = (((*__Pyx_BufPtrStrided2d(__pyx_t_7iou_cal_DTYPE_t *, __pyx_pybuffernd_ious.rcbuffer->pybuffer.buf, __pyx_t_8, __pyx_pybuffernd_ious.diminfo[0].strides, __pyx_t_9, __pyx_pybuffernd_ious.diminfo[1].strides)) > 0.5) != 0);
+      if (__pyx_t_11) {
+      } else {
+        __pyx_t_7 = __pyx_t_11;
+        goto __pyx_L8_bool_binop_done;
+      }
+      __pyx_t_12 = __pyx_v_j;
+      __pyx_t_10 = -1;
+      if (__pyx_t_12 < 0) {
+        __pyx_t_12 += __pyx_pybuffernd_img_label.diminfo[0].shape;
+        if (unlikely(__pyx_t_12 < 0)) __pyx_t_10 = 0;
+      } else if (unlikely(__pyx_t_12 >= __pyx_pybuffernd_img_label.diminfo[0].shape)) __pyx_t_10 = 0;
+      if (unlikely(__pyx_t_10 != -1)) {
+        __Pyx_RaiseBufferIndexError(__pyx_t_10);
+        __PYX_ERR(0, 57, __pyx_L1_error)
+      }
+      __pyx_t_11 = (((*__Pyx_BufPtrStrided1d(__pyx_t_7iou_cal_DTYPE_t *, __pyx_pybuffernd_img_label.rcbuffer->pybuffer.buf, __pyx_t_12, __pyx_pybuffernd_img_label.diminfo[0].strides)) == 1.) != 0);
+      __pyx_t_7 = __pyx_t_11;
+      __pyx_L8_bool_binop_done:;
+      if (__pyx_t_7) {
+
+        /* "iou_cal.pyx":58
+ *         for j in range(dim_c):
+ *             if ious[i, j] > 0.5 and img_label[j] == 1.:
+ *                labels[i, j + 1] = 1             # <<<<<<<<<<<<<<
+ */
+        __pyx_t_13 = __pyx_v_i;
+        __pyx_t_14 = (__pyx_v_j + 1);
+        __pyx_t_10 = -1;
+        if (__pyx_t_13 < 0) {
+          __pyx_t_13 += __pyx_pybuffernd_labels.diminfo[0].shape;
+          if (unlikely(__pyx_t_13 < 0)) __pyx_t_10 = 0;
+        } else if (unlikely(__pyx_t_13 >= __pyx_pybuffernd_labels.diminfo[0].shape)) __pyx_t_10 = 0;
+        if (__pyx_t_14 < 0) {
+          __pyx_t_14 += __pyx_pybuffernd_labels.diminfo[1].shape;
+          if (unlikely(__pyx_t_14 < 0)) __pyx_t_10 = 1;
+        } else if (unlikely(__pyx_t_14 >= __pyx_pybuffernd_labels.diminfo[1].shape)) __pyx_t_10 = 1;
+        if (unlikely(__pyx_t_10 != -1)) {
+          __Pyx_RaiseBufferIndexError(__pyx_t_10);
+          __PYX_ERR(0, 58, __pyx_L1_error)
+        }
+        *__Pyx_BufPtrStrided2d(__pyx_t_7iou_cal_DTYPE_t *, __pyx_pybuffernd_labels.rcbuffer->pybuffer.buf, __pyx_t_13, __pyx_pybuffernd_labels.diminfo[0].strides, __pyx_t_14, __pyx_pybuffernd_labels.diminfo[1].strides) = 1.0;
+
+        /* "iou_cal.pyx":57
+ *     for i in range(dim_r):
+ *         for j in range(dim_c):
+ *             if ious[i, j] > 0.5 and img_label[j] == 1.:             # <<<<<<<<<<<<<<
+ *                labels[i, j + 1] = 1
+ */
+      }
+    }
+  }
+
+  /* "iou_cal.pyx":51
+ *             ious[i, j] = iou > 0.6
+ * 
+ * def assign_label(np.ndarray[DTYPE_t, ndim=1] img_label, np.ndarray[DTYPE_t, ndim=2] labels, np.ndarray[DTYPE_t, ndim=2] ious):             # <<<<<<<<<<<<<<
+ *     cdef int dim_r = labels.shape[0]
+ *     cdef int dim_c = ious.shape[1]
+ */
+
+  /* function exit code */
+  __pyx_r = Py_None; __Pyx_INCREF(Py_None);
+  goto __pyx_L0;
+  __pyx_L1_error:;
+  { PyObject *__pyx_type, *__pyx_value, *__pyx_tb;
+    __Pyx_PyThreadState_declare
+    __Pyx_PyThreadState_assign
+    __Pyx_ErrFetch(&__pyx_type, &__pyx_value, &__pyx_tb);
+    __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_img_label.rcbuffer->pybuffer);
+    __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_ious.rcbuffer->pybuffer);
+    __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_labels.rcbuffer->pybuffer);
+  __Pyx_ErrRestore(__pyx_type, __pyx_value, __pyx_tb);}
+  __Pyx_AddTraceback("iou_cal.assign_label", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = NULL;
+  goto __pyx_L2;
+  __pyx_L0:;
+  __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_img_label.rcbuffer->pybuffer);
+  __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_ious.rcbuffer->pybuffer);
+  __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_labels.rcbuffer->pybuffer);
+  __pyx_L2:;
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
@@ -5024,6 +5329,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_area1, __pyx_k_area1, sizeof(__pyx_k_area1), 0, 0, 1, 1},
   {&__pyx_n_s_area2, __pyx_k_area2, sizeof(__pyx_k_area2), 0, 0, 1, 1},
   {&__pyx_n_s_assign_iou, __pyx_k_assign_iou, sizeof(__pyx_k_assign_iou), 0, 0, 1, 1},
+  {&__pyx_n_s_assign_label, __pyx_k_assign_label, sizeof(__pyx_k_assign_label), 0, 0, 1, 1},
   {&__pyx_n_s_bbox1, __pyx_k_bbox1, sizeof(__pyx_k_bbox1), 0, 0, 1, 1},
   {&__pyx_n_s_bbox2, __pyx_k_bbox2, sizeof(__pyx_k_bbox2), 0, 0, 1, 1},
   {&__pyx_n_s_bbox_c, __pyx_k_bbox_c, sizeof(__pyx_k_bbox_c), 0, 0, 1, 1},
@@ -5035,6 +5341,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_float, __pyx_k_float, sizeof(__pyx_k_float), 0, 0, 1, 1},
   {&__pyx_n_s_h, __pyx_k_h, sizeof(__pyx_k_h), 0, 0, 1, 1},
   {&__pyx_n_s_i, __pyx_k_i, sizeof(__pyx_k_i), 0, 0, 1, 1},
+  {&__pyx_n_s_img_label, __pyx_k_img_label, sizeof(__pyx_k_img_label), 0, 0, 1, 1},
   {&__pyx_n_s_import, __pyx_k_import, sizeof(__pyx_k_import), 0, 0, 1, 1},
   {&__pyx_n_s_inter, __pyx_k_inter, sizeof(__pyx_k_inter), 0, 0, 1, 1},
   {&__pyx_n_s_iou, __pyx_k_iou, sizeof(__pyx_k_iou), 0, 0, 1, 1},
@@ -5043,6 +5350,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_ious, __pyx_k_ious, sizeof(__pyx_k_ious), 0, 0, 1, 1},
   {&__pyx_n_s_j, __pyx_k_j, sizeof(__pyx_k_j), 0, 0, 1, 1},
   {&__pyx_n_s_k, __pyx_k_k, sizeof(__pyx_k_k), 0, 0, 1, 1},
+  {&__pyx_n_s_labels, __pyx_k_labels, sizeof(__pyx_k_labels), 0, 0, 1, 1},
   {&__pyx_n_s_main, __pyx_k_main, sizeof(__pyx_k_main), 0, 0, 1, 1},
   {&__pyx_kp_u_ndarray_is_not_C_contiguous, __pyx_k_ndarray_is_not_C_contiguous, sizeof(__pyx_k_ndarray_is_not_C_contiguous), 0, 1, 0, 0},
   {&__pyx_kp_u_ndarray_is_not_Fortran_contiguou, __pyx_k_ndarray_is_not_Fortran_contiguou, sizeof(__pyx_k_ndarray_is_not_Fortran_contiguou), 0, 1, 0, 0},
@@ -5194,6 +5502,18 @@ static int __Pyx_InitCachedConstants(void) {
   __Pyx_GOTREF(__pyx_tuple__12);
   __Pyx_GIVEREF(__pyx_tuple__12);
   __pyx_codeobj__13 = (PyObject*)__Pyx_PyCode_New(3, 0, 9, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__12, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_iou_cal_pyx, __pyx_n_s_assign_iou, 42, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__13)) __PYX_ERR(0, 42, __pyx_L1_error)
+
+  /* "iou_cal.pyx":51
+ *             ious[i, j] = iou > 0.6
+ * 
+ * def assign_label(np.ndarray[DTYPE_t, ndim=1] img_label, np.ndarray[DTYPE_t, ndim=2] labels, np.ndarray[DTYPE_t, ndim=2] ious):             # <<<<<<<<<<<<<<
+ *     cdef int dim_r = labels.shape[0]
+ *     cdef int dim_c = ious.shape[1]
+ */
+  __pyx_tuple__14 = PyTuple_Pack(8, __pyx_n_s_img_label, __pyx_n_s_labels, __pyx_n_s_ious, __pyx_n_s_dim_r, __pyx_n_s_dim_c, __pyx_n_s_i, __pyx_n_s_j, __pyx_n_s_k); if (unlikely(!__pyx_tuple__14)) __PYX_ERR(0, 51, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_tuple__14);
+  __Pyx_GIVEREF(__pyx_tuple__14);
+  __pyx_codeobj__15 = (PyObject*)__Pyx_PyCode_New(3, 0, 8, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__14, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_iou_cal_pyx, __pyx_n_s_assign_label, 51, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__15)) __PYX_ERR(0, 51, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;
@@ -5521,6 +5841,18 @@ if (!__Pyx_RefNanny) {
   __pyx_t_3 = PyCFunction_NewEx(&__pyx_mdef_7iou_cal_3assign_iou, NULL, __pyx_n_s_iou_cal); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 42, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   if (PyDict_SetItem(__pyx_d, __pyx_n_s_assign_iou, __pyx_t_3) < 0) __PYX_ERR(0, 42, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+
+  /* "iou_cal.pyx":51
+ *             ious[i, j] = iou > 0.6
+ * 
+ * def assign_label(np.ndarray[DTYPE_t, ndim=1] img_label, np.ndarray[DTYPE_t, ndim=2] labels, np.ndarray[DTYPE_t, ndim=2] ious):             # <<<<<<<<<<<<<<
+ *     cdef int dim_r = labels.shape[0]
+ *     cdef int dim_c = ious.shape[1]
+ */
+  __pyx_t_3 = PyCFunction_NewEx(&__pyx_mdef_7iou_cal_5assign_label, NULL, __pyx_n_s_iou_cal); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 51, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_assign_label, __pyx_t_3) < 0) __PYX_ERR(0, 51, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
 
   /* "iou_cal.pyx":1

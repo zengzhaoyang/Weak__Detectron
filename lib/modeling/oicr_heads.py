@@ -3,19 +3,24 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
 from torch.autograd import Variable
+import numpy as np
 
 from core.config import cfg
 import nn as mynn
 import utils.net as net_utils
 
-#from iou_cal import assign_iou
+from iou_cal import assign_iou, assign_label
 #from featuredist_cal import assign_featuredist
 
-class wsddn_outputs(nn.Module):
+class oicr_outputs(nn.Module):
     def __init__(self, dim_in):
         super().__init__()
         self.cls_score = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
         self.bbox_pred = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
+
+        self.cls_refine1 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
+        self.cls_refine2 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
+        self.cls_refine3 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
 
         self._init_weights()
 
@@ -24,13 +29,27 @@ class wsddn_outputs(nn.Module):
         init.constant_(self.cls_score.bias, 0)
         init.normal_(self.bbox_pred.weight, std=0.001)
         init.constant_(self.bbox_pred.bias, 0)
+        init.normal_(self.cls_refine1.weight, std=0.001)
+        init.constant_(self.cls_refine1.bias, 0)
+        init.normal_(self.cls_refine2.weight, std=0.001)
+        init.constant_(self.cls_refine2.bias, 0)
+        init.normal_(self.cls_refine3.weight, std=0.001)
+        init.constant_(self.cls_refine3.bias, 0)
+
 
     def detectron_weight_mapping(self):
         detectron_weight_mapping = {
             'cls_score.weight': 'cls_score_w',
             'cls_score.bias': 'cls_score_b',
             'bbox_pred.weight': 'bbox_pred_w',
-            'bbox_pred.bias': 'bbox_pred_b'
+            'bbox_pred.bias': 'bbox_pred_b',
+            'cls_refine1.weight': 'cls_refine1_w',
+            'cls_refine1.bias': 'cls_refine1_b',
+            'cls_refine2.weight': 'cls_refine2_w',
+            'cls_refine2.bias': 'cls_refine2_b',
+            'cls_refine3.weight': 'cls_refine3_w',
+            'cls_refine3.bias': 'cls_refine3_b'
+
         }
         orphan_in_detectron = []
         return detectron_weight_mapping, orphan_in_detectron
@@ -45,20 +64,25 @@ class wsddn_outputs(nn.Module):
 
         bbox_mul = cls_score * bbox_pred
 
-        #return bbox_mul
+        #cls_refine3 = self.cls_refine3(x)
+        #cls_refine3 = F.softmax(cls_refine3, dim=1)
+        #cls_refine3 = cls_refine3 * bbox_pred
 
         if self.training:
-            y = bbox_mul.sum(dim=0)
-            return y
-
+            cls_refine1 = self.cls_refine1(x)
+            cls_refine1 = F.softmax(cls_refine1, dim=1)
+            cls_refine2 = self.cls_refine2(x)
+            cls_refine2 = F.softmax(cls_refine2, dim=1)
+            
+            return bbox_mul, cls_refine1, cls_refine2, cls_refine3
         else:
             return bbox_mul
 
 
 
-def wsddn_losses(y, label_int32):
+def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refine3):
 
-    #y = bbox_mul.sum(dim=0)
+    y = bbox_mul.sum(dim=0)
 
     device_id = y.get_device()
     label = label_int32.long()[:, None]
@@ -67,43 +91,109 @@ def wsddn_losses(y, label_int32):
     
     label, _ = label.max(dim=0)
     label = label[1:]
+    img_label = label.cpu().numpy().astype(np.float)
     y = y[1:]
 
     cls_loss = -label * torch.log(y + 1e-6) - (1-label) * torch.log(1 - y + 1e-6)
     cls_loss = cls_loss.sum()
 
+    idx = torch.argmax(bbox_mul, dim=0)[1:].cpu().numpy().astype(np.int)
+    maxprob, _ = torch.max(bbox_mul, dim=0)
+    maxprob = maxprob.cpu().detach().numpy()
+    maxprob[0] = 1.
+    maxprob = Variable(torch.from_numpy(maxprob)).cuda().float()
 
-    # sp loss
-    #x = bbox_mul[1:]
-    #idx = x.argmax(dim=0)
-    #maxprob = x.max(dim=0)
-    #maxprob = 0.5 * maxprob ** 2
+    rois = rois.cpu().numpy().astype(np.float)
+    rois_take = rois[idx, :]
+    dim_r = rois.shape[0]
+    dim_c = rois_take.shape[0]
 
-    #fc = fc.numpy()
-    #rois = rois.numpy()
+    ious = np.zeros((dim_r, dim_c), dtype=np.float)
+    assign_iou(rois, rois_take, ious)
+    label1 = np.zeros((dim_r, cfg.MODEL.NUM_CLASSES), dtype=np.float)
+    assign_label(img_label, label1, ious)
+    label1 = Variable(torch.from_numpy(label1)).cuda().float()
+    refine_loss1 = torch.mean(torch.sum(-label1 * maxprob * torch.log(cls_refine1 + 1e-6), dim=1), dim=0)
 
-    #fc_take = fc[idx, :]
-    #rois_take = rois[idx, :]
 
-    #dim_r = rois.shape[0]
-    #dim_c = rois_take.shape[0]
+    idx = torch.argmax(cls_refine1, dim=0)[1:].cpu().numpy().astype(np.int32)
+    maxprob, _ = torch.max(cls_refine1, dim=0)
+    maxprob = maxprob.cpu().detach().numpy()
+    maxprob[0] = 1.
+    maxprob = Variable(torch.from_numpy(maxprob)).cuda().float()
+    rois_take = rois[idx, :]
+    ious = np.zeros((dim_r, dim_c), dtype=np.float)
+    assign_iou(rois, rois_take, ious)
+    label2 = np.zeros((dim_r, cfg.MODEL.NUM_CLASSES), dtype=np.float)
+    assign_label(img_label, label2, ious)
+    label2 = Variable(torch.from_numpy(label2)).cuda().float()
+    refine_loss2 = torch.mean(torch.sum(-label2 * maxprob * torch.log(cls_refine2 + 1e-6), dim=1), dim=0)
 
-    #ious = np.zeros((dim_r, dim_c), dtype=np.float)
-    #assign_iou(rois, rois_take, ious)
 
-    #featuredist = np.zeros((dim_r, dim_c), dtype=np.float)
-    #assign_featuredist(fc, fc_take, featuredist)
+    idx = torch.argmax(cls_refine2, dim=0)[1:].cpu().numpy().astype(np.int32)
+    maxprob, _ = torch.max(cls_refine2, dim=0)
+    maxprob = maxprob.cpu().detach().numpy()
+    maxprob[0] = 1.
+    maxprob = Variable(torch.from_numpy(maxprob)).cuda().float()
+    rois_take = rois[idx, :]
+    ious = np.zeros((dim_r, dim_c), dtype=np.float)
+    assign_iou(rois, rois_take, ious)
+    label3 = np.zeros((dim_r, cfg.MODEL.NUM_CLASSES), dtype=np.float)
+    assign_label(img_label, label3, ious)
+    label3 = Variable(torch.from_numpy(label3)).cuda().float()
+    refine_loss3 = torch.mean(torch.sum(-label3 * maxprob * torch.log(cls_refine3 + 1e-6), dim=1), dim=0)
 
-    #ious = Variable(torch.from_numpy(ious)).cuda()
-    #featuredist = Variable(torch.from_umpy(featuredist)).cuda()
+    return cls_loss, refine_loss1, refine_loss2, refine_loss3
 
-    #i_times_f = ious * featuredist
-    #i_times_f = maxprob * i_times_f
-    #i_times_f = label * i_times_f
-    #sp_loss = i_times_f.sum()
 
-    return cls_loss
-
+#def _get_highest_score_proposals(boxes, cls_prob, label):
+#   
+#    gt_boxes = np.zeros((0, 4), dtype=np.float32)
+#    gt_classes = np.zeros((0, 1), dtype=int32)
+#    gt_scores = np.zeros((0, 1), dtype=np.float32)
+#
+#    for i in range(cfg.MODEL.NUM_CLASSES):
+#        if label[i] == 1:
+#            cls_prob_tmp = cls_prob[:, i].copy()
+#            max_index = np.argmax(cls_prob_tmp)
+#
+#            gt_boxes = np.vstack((gt_boxes, boxes[max_index, :].reshape(1, -1)))
+#            gt_classes = np.vstack((gt_classes, (i+1) * np.ones((1, 1), dtype=int32)))
+#            gt_scores = np.vstack((gt_scores, cls_prob_tmp[max_index] * np.ones((1, 1), dtype=np.float32)))
+#            cls_prob[max_index, :] = 0
+#
+#    proposals = {'gt_boxes': gt_boxes, 'gt_classes': gt_classes, 'gt_scores': gt_scores}
+#    return proposals
+#
+#def _sample_rois(all_rois, proposals, num_classes):
+#    """Generate a random sample of RoIs comprising foreground and background
+#    examples.
+#    """
+#    # overlaps: (rois x gt_boxes)
+#    gt_boxes = proposals['gt_boxes']
+#    gt_labels = proposals['gt_classes']
+#    gt_scores = proposals['gt_scores']
+#    overlaps = bbox_overlaps(
+#        np.ascontiguousarray(all_rois, dtype=np.float),
+#        np.ascontiguousarray(gt_boxes, dtype=np.float))
+#    gt_assignment = overlaps.argmax(axis=1)
+#    max_overlaps = overlaps.max(axis=1)
+#    labels = gt_labels[gt_assignment, 0]
+#    cls_loss_weights = gt_scores[gt_assignment, 0]
+#
+#    # Select foreground RoIs as those with >= FG_THRESH overlap
+#    fg_inds = np.where(max_overlaps >= 0.25)[0]
+#
+#    # Select background RoIs as those within [BG_THRESH_LO, BG_THRESH_HI)
+#    bg_inds = np.where(max_overlaps < 0.25)[0]
+#
+#
+#    labels[bg_inds] = 0
+#
+#    rois = all_rois
+#
+#    return labels, rois, cls_loss_weights
+          
 
 # ---------------------------------------------------------------------------- #
 # Box heads
