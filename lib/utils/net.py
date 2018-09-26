@@ -75,6 +75,10 @@ def update_learning_rate(optimizer, cur_lr, new_lr):
         for ind, param_group in enumerate(optimizer.param_groups):
             if ind == 1 and cfg.SOLVER.BIAS_DOUBLE_LR:  # bias params
                 param_group['lr'] = new_lr * 2
+            elif ind == 4 and cfg.SOLVER.BIAS_DOUBLE_LR:
+                param_group['lr'] = new_lr * 20
+            elif ind == 3:
+                param_group['lr'] = new_lr * 10
             else:
                 param_group['lr'] = new_lr
             param_keys += param_group['params']

@@ -77,40 +77,40 @@ def _sample_rois(roidb, im_scale, batch_idx):
     """Generate a random sample of RoIs comprising foreground and background
     examples.
     """
-    rois_per_image = int(cfg.TRAIN.BATCH_SIZE_PER_IM)
-    fg_rois_per_image = int(np.round(cfg.TRAIN.FG_FRACTION * rois_per_image))
-    max_overlaps = roidb['max_overlaps']
+    #rois_per_image = int(cfg.TRAIN.BATCH_SIZE_PER_IM)
+    #fg_rois_per_image = int(np.round(cfg.TRAIN.FG_FRACTION * rois_per_image))
+    #max_overlaps = roidb['max_overlaps']
 
-    # Select foreground RoIs as those with >= FG_THRESH overlap
-    fg_inds = np.where(max_overlaps >= cfg.TRAIN.FG_THRESH)[0]
-    # Guard against the case when an image has fewer than fg_rois_per_image
-    # foreground RoIs
-    fg_rois_per_this_image = np.minimum(fg_rois_per_image, fg_inds.size)
-    # Sample foreground regions without replacement
-    if fg_inds.size > 0:
-        fg_inds = npr.choice(
-            fg_inds, size=fg_rois_per_this_image, replace=False)
+    ## Select foreground RoIs as those with >= FG_THRESH overlap
+    #fg_inds = np.where(max_overlaps >= cfg.TRAIN.FG_THRESH)[0]
+    ## Guard against the case when an image has fewer than fg_rois_per_image
+    ## foreground RoIs
+    #fg_rois_per_this_image = np.minimum(fg_rois_per_image, fg_inds.size)
+    ## Sample foreground regions without replacement
+    #if fg_inds.size > 0:
+    #    fg_inds = npr.choice(
+    #        fg_inds, size=fg_rois_per_this_image, replace=False)
 
-    # Select background RoIs as those within [BG_THRESH_LO, BG_THRESH_HI)
-    bg_inds = np.where((max_overlaps < cfg.TRAIN.BG_THRESH_HI) &
-                       (max_overlaps >= cfg.TRAIN.BG_THRESH_LO))[0]
-    # Compute number of background RoIs to take from this image (guarding
-    # against there being fewer than desired)
-    bg_rois_per_this_image = rois_per_image - fg_rois_per_this_image
-    bg_rois_per_this_image = np.minimum(bg_rois_per_this_image, bg_inds.size)
-    # Sample foreground regions without replacement
-    if bg_inds.size > 0:
-        bg_inds = npr.choice(
-            bg_inds, size=bg_rois_per_this_image, replace=False)
+    ## Select background RoIs as those within [BG_THRESH_LO, BG_THRESH_HI)
+    #bg_inds = np.where((max_overlaps < cfg.TRAIN.BG_THRESH_HI) &
+    #                   (max_overlaps >= cfg.TRAIN.BG_THRESH_LO))[0]
+    ## Compute number of background RoIs to take from this image (guarding
+    ## against there being fewer than desired)
+    #bg_rois_per_this_image = rois_per_image - fg_rois_per_this_image
+    #bg_rois_per_this_image = np.minimum(bg_rois_per_this_image, bg_inds.size)
+    ## Sample foreground regions without replacement
+    #if bg_inds.size > 0:
+    #    bg_inds = npr.choice(
+    #        bg_inds, size=bg_rois_per_this_image, replace=False)
 
-    # The indices that we're selecting (both fg and bg)
-    keep_inds = np.append(fg_inds, bg_inds)
-    # Label is the class each RoI has max overlap with
-    sampled_labels = roidb['max_classes'][keep_inds]
-    sampled_labels[fg_rois_per_this_image:] = 0  # Label bg RoIs with class 0
-    sampled_boxes = roidb['boxes'][keep_inds]
+    ## The indices that we're selecting (both fg and bg)
+    #keep_inds = np.append(fg_inds, bg_inds)
+    ## Label is the class each RoI has max overlap with
+    sampled_labels = roidb['max_classes']
+    #sampled_labels[fg_rois_per_this_image:] = 0  # Label bg RoIs with class 0
+    sampled_boxes = roidb['boxes']
 
-    # Scale rois and format as (batch_idx, x1, y1, x2, y2)
+    ## Scale rois and format as (batch_idx, x1, y1, x2, y2)
     sampled_rois = sampled_boxes * im_scale
     repeated_batch_idx = batch_idx * blob_utils.ones((sampled_rois.shape[0], 1))
     sampled_rois = np.hstack((repeated_batch_idx, sampled_rois))

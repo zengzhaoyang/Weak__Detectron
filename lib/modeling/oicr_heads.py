@@ -15,8 +15,8 @@ from iou_cal import assign_iou, assign_label
 class oicr_outputs(nn.Module):
     def __init__(self, dim_in):
         super().__init__()
-        self.cls_score = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
-        self.bbox_pred = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
+        self.cls_score = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES-1)
+        self.bbox_pred = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES-1)
 
         self.cls_refine1 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
         self.cls_refine2 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
@@ -64,19 +64,19 @@ class oicr_outputs(nn.Module):
 
         bbox_mul = cls_score * bbox_pred
 
-        #cls_refine3 = self.cls_refine3(x)
-        #cls_refine3 = F.softmax(cls_refine3, dim=1)
-        #cls_refine3 = cls_refine3 * bbox_pred
+        cls_refine1 = self.cls_refine1(x)
+        cls_refine1 = F.softmax(cls_refine1, dim=1)
+        cls_refine2 = self.cls_refine2(x)
+        cls_refine2 = F.softmax(cls_refine2, dim=1)
+        cls_refine3 = self.cls_refine3(x)
+        cls_refine3 = F.softmax(cls_refine3, dim=1)
+
+
 
         if self.training:
-            cls_refine1 = self.cls_refine1(x)
-            cls_refine1 = F.softmax(cls_refine1, dim=1)
-            cls_refine2 = self.cls_refine2(x)
-            cls_refine2 = F.softmax(cls_refine2, dim=1)
-            
             return bbox_mul, cls_refine1, cls_refine2, cls_refine3
         else:
-            return bbox_mul
+            return (cls_refine1 + cls_refine2 + cls_refine3) / 3.
 
 
 
@@ -92,56 +92,55 @@ def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refin
     label, _ = label.max(dim=0)
     label = label[1:]
     img_label = label.cpu().numpy().astype(np.float)
-    y = y[1:]
 
-    cls_loss = -label * torch.log(y + 1e-6) - (1-label) * torch.log(1 - y + 1e-6)
+    cls_loss = -label * torch.log(y + 1e-8) - (1-label) * torch.log(1 - y + 1e-8)
     cls_loss = cls_loss.sum()
 
-    idx = torch.argmax(bbox_mul, dim=0)[1:].cpu().numpy().astype(np.int)
-    maxprob, _ = torch.max(bbox_mul, dim=0)
-    maxprob = maxprob.cpu().detach().numpy()
-    maxprob[0] = 1.
-    maxprob = Variable(torch.from_numpy(maxprob)).cuda().float()
+    idx = torch.argmax(bbox_mul, dim=0).cpu().numpy().astype(np.int) # 20
+    maxprob, _ = torch.max(bbox_mul, dim=0) #20
+    maxprob = maxprob.detach().cpu().numpy().astype(np.float)
+    if device_id == 1:
+        print('bbox_mul', maxprob.sum(), maxprob.max(), maxprob.min())
 
     rois = rois.cpu().numpy().astype(np.float)
     rois_take = rois[idx, :]
     dim_r = rois.shape[0]
     dim_c = rois_take.shape[0]
 
-    ious = np.zeros((dim_r, dim_c), dtype=np.float)
+    ious = np.zeros((dim_r, dim_c), dtype=np.float) #20
     assign_iou(rois, rois_take, ious)
-    label1 = np.zeros((dim_r, cfg.MODEL.NUM_CLASSES), dtype=np.float)
-    assign_label(img_label, label1, ious)
-    label1 = Variable(torch.from_numpy(label1)).cuda().float()
-    refine_loss1 = torch.mean(torch.sum(-label1 * maxprob * torch.log(cls_refine1 + 1e-6), dim=1), dim=0)
+    label1 = np.zeros((dim_r, cfg.MODEL.NUM_CLASSES), dtype=np.float) # r * 21
+    assign_label(img_label, label1, ious, maxprob)
+    label1 = Variable(torch.from_numpy(label1)).cuda().float() # r * 21
+    refine_loss1 = torch.sum(torch.sum(-label1 * torch.log(cls_refine1 + 1e-8), dim=1), dim=0) / torch.sum(label1 > 1e-12).float()
 
-
-    idx = torch.argmax(cls_refine1, dim=0)[1:].cpu().numpy().astype(np.int32)
-    maxprob, _ = torch.max(cls_refine1, dim=0)
-    maxprob = maxprob.cpu().detach().numpy()
-    maxprob[0] = 1.
-    maxprob = Variable(torch.from_numpy(maxprob)).cuda().float()
+    idx = torch.argmax(cls_refine1[:, 1:], dim=0).cpu().numpy().astype(np.int32)
+    maxprob, _ = torch.max(cls_refine1[:, 1:], dim=0)
+    maxprob = maxprob.detach().cpu().numpy().astype(np.float)
+    if device_id == 1:
+        print((label1 != 0).sum(), (label1[:, 1:] != 0).sum())
+        print('refine1', maxprob.sum(), maxprob.max(), maxprob.min(), cls_refine1.argmax(dim=1).sum().detach().cpu().numpy())
     rois_take = rois[idx, :]
     ious = np.zeros((dim_r, dim_c), dtype=np.float)
     assign_iou(rois, rois_take, ious)
     label2 = np.zeros((dim_r, cfg.MODEL.NUM_CLASSES), dtype=np.float)
-    assign_label(img_label, label2, ious)
+    assign_label(img_label, label2, ious, maxprob)
     label2 = Variable(torch.from_numpy(label2)).cuda().float()
-    refine_loss2 = torch.mean(torch.sum(-label2 * maxprob * torch.log(cls_refine2 + 1e-6), dim=1), dim=0)
+    refine_loss2 = torch.sum(torch.sum(-label2 * torch.log(cls_refine2 + 1e-8), dim=1), dim=0) / torch.sum(label2 > 1e-12).float()
 
 
-    idx = torch.argmax(cls_refine2, dim=0)[1:].cpu().numpy().astype(np.int32)
-    maxprob, _ = torch.max(cls_refine2, dim=0)
-    maxprob = maxprob.cpu().detach().numpy()
-    maxprob[0] = 1.
-    maxprob = Variable(torch.from_numpy(maxprob)).cuda().float()
+    idx = torch.argmax(cls_refine2[:, 1:], dim=0).cpu().numpy().astype(np.int32)
+    maxprob, _ = torch.max(cls_refine2[:, 1:], dim=0)
+    maxprob = maxprob.detach().cpu().numpy().astype(np.float)
+    if device_id == 1:
+        print('refine2', maxprob.sum(), maxprob.max(), maxprob.min(), cls_refine2.argmax(dim=1).sum().detach().cpu().numpy())
     rois_take = rois[idx, :]
     ious = np.zeros((dim_r, dim_c), dtype=np.float)
     assign_iou(rois, rois_take, ious)
     label3 = np.zeros((dim_r, cfg.MODEL.NUM_CLASSES), dtype=np.float)
-    assign_label(img_label, label3, ious)
+    assign_label(img_label, label3, ious, maxprob)
     label3 = Variable(torch.from_numpy(label3)).cuda().float()
-    refine_loss3 = torch.mean(torch.sum(-label3 * maxprob * torch.log(cls_refine3 + 1e-6), dim=1), dim=0)
+    refine_loss3 = torch.sum(torch.sum(-label3 * torch.log(cls_refine3 + 1e-8), dim=1), dim=0) / torch.sum(label3 > 1e-12).float()
 
     return cls_loss, refine_loss1, refine_loss2, refine_loss3
 
@@ -206,11 +205,14 @@ class roi_2mlp_head(nn.Module):
         self.dim_in = dim_in
         self.roi_xform = roi_xform_func
         self.spatial_scale = spatial_scale
-        self.dim_out = hidden_dim = cfg.FAST_RCNN.MLP_HEAD_DIM
+        #self.dim_out = hidden_dim = cfg.FAST_RCNN.MLP_HEAD_DIM
+        self.dim_out = hidden_dim = 4096
 
         roi_size = cfg.FAST_RCNN.ROI_XFORM_RESOLUTION
         self.fc1 = nn.Linear(dim_in * roi_size**2, hidden_dim)
+        self.dropout1 = nn.Dropout(p=0.5)
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.dropout2 = nn.Dropout(p=0.5)
 
         self._init_weights()
 
@@ -239,8 +241,8 @@ class roi_2mlp_head(nn.Module):
             sampling_ratio=cfg.FAST_RCNN.ROI_XFORM_SAMPLING_RATIO
         )
         batch_size = x.size(0)
-        x = F.relu(self.fc1(x.view(batch_size, -1)), inplace=True)
-        x = F.relu(self.fc2(x), inplace=True)
+        x = self.dropout1(F.relu(self.fc1(x.view(batch_size, -1)), inplace=True))
+        x = self.dropout2(F.relu(self.fc2(x), inplace=True))
 
         return x
 

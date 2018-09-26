@@ -28,7 +28,7 @@ from modeling.model_weak_builder import Generalized_RCNN
 from utils.detectron_weight_helper import load_detectron_weight
 from utils.logging import setup_logging
 from utils.timer import Timer
-from utils.training_stats import TrainingStats
+from utils.training_stats_weak import TrainingStats
 
 # Set up logging and load config options
 logger = setup_logging(__name__)
@@ -158,7 +158,8 @@ def main():
     #    cfg.MODEL.NUM_CLASSES = 2
     #else:
     #    raise ValueError("Unexpected args.dataset: {}".format(args.dataset))
-    cfg.TRAIN.DATASETS= ('voc_2007_train', 'voc_2007_val', 'voc_2012_train', 'voc_2012_val')
+    #cfg.TRAIN.DATASETS= ('voc_2007_train', 'voc_2007_val', 'voc_2012_train', 'voc_2012_val')
+    cfg.TRAIN.DATASETS = ('voc_2007_train', 'voc_2007_val')
     #cfg.TRAIN.DATASETS = ('voc_2007_train', )
     cfg.MODEL.NUM_CLASSES = 21
 
@@ -265,9 +266,20 @@ def main():
     nonbias_params = []
     nonbias_param_names = []
     nograd_param_names = []
+    refine_weight_params = []
+    refine_weight_param_names = []
+    refine_bias_params = []
+    refine_bias_param_names = []
+
     for key, value in maskRCNN.named_parameters():
         if value.requires_grad:
-            if 'bias' in key:
+            if 'refine' in key and 'bias' in key:
+                refine_bias_params.append(value)
+                refine_bias_param_names.append(key)
+            elif 'refine' in key and not 'bias' in key:
+                refine_weight_params.append(value)
+                refine_weight_param_names.append(key)
+            elif 'bias' in key:
                 bias_params.append(value)
                 bias_param_names.append(key)
             elif key in gn_param_nameset:
@@ -282,6 +294,12 @@ def main():
 
     # Learning rate of 0 is a dummy value to be set properly at the start of training
     params = [
+        {'params': refine_weight_params,
+         'lr': 0,
+         'weight_decay': cfg.SOLVER.WEIGHT_DECAY},
+        {'params': refine_bias_params,
+         'lr': 0 * (cfg.SOLVER.BIAS_DOUBLE_LR + 1),
+         'weight_decay': cfg.SOLVER.WEIGHT_DECAY if cfg.SOLVER.BIAS_WEIGHT_DECAY else 0},
         {'params': nonbias_params,
          'lr': 0,
          'weight_decay': cfg.SOLVER.WEIGHT_DECAY},
@@ -293,7 +311,7 @@ def main():
          'weight_decay': cfg.SOLVER.WEIGHT_DECAY_GN}
     ]
     # names of paramerters for each paramter
-    param_names = [nonbias_param_names, bias_param_names, gn_param_names]
+    param_names = [nonbias_param_names, bias_param_names, gn_param_names, refine_weight_param_names, refine_bias_param_names]
 
     if cfg.SOLVER.TYPE == "SGD":
         optimizer = torch.optim.SGD(params, momentum=cfg.SOLVER.MOMENTUM)

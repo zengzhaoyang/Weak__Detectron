@@ -68,7 +68,7 @@ def process_in_parallel(
         start = subinds[i][0]
         end = subinds[i][-1] + 1
         subprocess_env['CUDA_VISIBLE_DEVICES'] = str(gpu_ind)
-        cmd = ('~/anaconda3/bin/python {binary} --range {start} {end} --cfg {cfg_file} --set {opts} '
+        cmd = ('/var/storage/shared/pnrsy/sys/jobs/application_1531767901933_77643/anaconda3/bin/python {binary} --range {start} {end} --cfg {cfg_file} --set {opts} '
                '--output_dir {output_dir}')
         if load_ckpt is not None:
             cmd += ' --load_ckpt {load_ckpt}'
