@@ -1,10 +1,12 @@
 MODEL:
   TYPE: generalized_rcnn
-  CONV_BODY: ResNet.ResNet50_conv4_body
+  #CONV_BODY: ResNet.ResNet50_conv4_body
+  CONV_BODY: VGG16.VGG16_conv5_body
   FASTER_RCNN: false
-NUM_GPUS: 8
+NUM_GPUS: 1
 RESNETS:
-  IMAGENET_PRETRAINED_WEIGHTS: 'data/pretrained_model/resnet50_caffe.pth'
+  #IMAGENET_PRETRAINED_WEIGHTS: 'data/pretrained_model/resnet50_caffe.pth'
+  IMAGENET_PRETRAINED_WEIGHTS: 'data/pretrained_model/vgg16_caffe.pth'
 SOLVER:
   WEIGHT_DECAY: 0.0005
   LR_POLICY: steps_with_decay
@@ -15,8 +17,9 @@ SOLVER:
   STEPS: [0, 12000, 16000]
 FAST_RCNN:
   #ROI_BOX_HEAD: ResNet.ResNet_roi_conv5_head
-  ROI_BOX_HEAD: fast_rcnn_heads.roi_2mlp_head
+  #ROI_BOX_HEAD: fast_rcnn_heads.roi_2mlp_head
   #ROI_BOX_HEAD: oicr_heads.roi_2mlp_head
+  ROI_BOX_HEAD: VGG16.VGG_roi_fc_head
   ROI_XFORM_METHOD: RoIAlign
 TRAIN:
   #SCALES: (480, 576, 688, 864, 1200)

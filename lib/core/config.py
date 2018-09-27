@@ -589,7 +589,7 @@ __C.SOLVER.BIAS_DOUBLE_LR = True
 __C.SOLVER.BIAS_WEIGHT_DECAY = False
 
 # Warm up to SOLVER.BASE_LR over this number of SGD iterations
-__C.SOLVER.WARM_UP_ITERS = 500
+__C.SOLVER.WARM_UP_ITERS = 50
 
 # Start the warm up from SOLVER.BASE_LR * SOLVER.WARM_UP_FACTOR
 __C.SOLVER.WARM_UP_FACTOR = 1.0 / 3.0

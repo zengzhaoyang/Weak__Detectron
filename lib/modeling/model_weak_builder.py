@@ -15,7 +15,8 @@ from modeling.roi_xfrom.roi_align.functions.roi_align import RoIAlignFunction
 import modeling.oicr_heads as oicr_heads
 import utils.blob as blob_utils
 import utils.net as net_utils
-import utils.resnet_weights_helper as resnet_utils
+#import utils.resnet_weights_helper as resnet_utils
+import utils.vgg_weights_helper as vgg_utils
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,8 @@ class Generalized_RCNN(nn.Module):
 
     def _init_modules(self):
         if cfg.MODEL.LOAD_IMAGENET_PRETRAINED_WEIGHTS:
-            resnet_utils.load_pretrained_imagenet_weights(self)
+            #resnet_utils.load_pretrained_imagenet_weights(self)
+            vgg_utils.load_pretrained_imagenet_weights(self)
             # Check if shared weights are equaled
 
         if cfg.TRAIN.FREEZE_CONV_BODY:
