@@ -27,6 +27,7 @@ import logging
 import numpy as np
 import os
 import yaml
+import heapq
 
 import torch
 
@@ -43,6 +44,7 @@ import utils.env as envu
 import utils.net as net_utils
 import utils.subprocess as subprocess_utils
 import utils.vis as vis_utils
+import utils.boxes as box_utils
 from utils.io import save_object
 from utils.timer import Timer
 
@@ -82,6 +84,21 @@ def get_inference_dataset(index, is_parent=True):
 
     return dataset_name, proposal_file
 
+def apply_nms(all_boxes, thresh):
+    num_classes = len(all_boxes)
+    num_images = len(all_boxes[0])
+    nms_boxes = [[[] for _ in range(num_images)] for _ in range(num_classes)]
+
+    for cls_ind in range(1, num_classes):
+        for im_ind in range(num_images):
+            dets = all_boxes[cls_ind][im_ind]
+            if dets == []:
+                continue
+            keep = box_utils.nms(dets, thresh)
+            if len(keep) == 0:
+                continue
+            nms_boxes[cls_ind][im_ind] = dets[keep, :].copy()
+    return nms_boxes
 
 def run_inference(
         args, ind_range=None,
@@ -234,29 +251,36 @@ def test_net(
     num_classes = cfg.MODEL.NUM_CLASSES
     all_boxes, all_segms, all_keyps = empty_results(num_classes, num_images)
     timers = defaultdict(Timer)
+
+    thresh = -np.inf * np.ones(num_classes-1)
+    top_scores = [[] for _ in range(num_classes-1)]
+    max_per_set = 40 * num_images
+    max_per_image = 100
+
     for i, entry in enumerate(roidb):
-        if cfg.TEST.PRECOMPUTED_PROPOSALS:
-            # The roidb may contain ground-truth rois (for example, if the roidb
-            # comes from the training or val split). We only want to evaluate
-            # detection on the *non*-ground-truth rois. We select only the rois
-            # that have the gt_classes field set to 0, which means there's no
-            # ground truth.
-            box_proposals = entry['boxes'][entry['gt_classes'] == 0]
-            if len(box_proposals) == 0:
-                continue
-        else:
-            # Faster R-CNN type models generate proposals on-the-fly with an
-            # in-network RPN; 1-stage models don't require proposals.
-            box_proposals = None
 
         im = cv2.imread(entry['image'])
-        cls_boxes_i, cls_segms_i, cls_keyps_i = im_detect_all(model, im, box_proposals, timers)
+        #cls_boxes_i, cls_segms_i, cls_keyps_i = im_detect_all(model, im, box_proposals, timers)
+        box_proposals = entry['boxes'][entry['gt_classes'] == 0]
+        scores, boxes = im_detect_all(model, im, box_proposals, timers)
 
-        extend_results(i, all_boxes, cls_boxes_i)
-        if cls_segms_i is not None:
-            extend_results(i, all_segms, cls_segms_i)
-        if cls_keyps_i is not None:
-            extend_results(i, all_keyps, cls_keyps_i)
+        for j in range(0, num_classes-1):
+            inds = np.where((scores[:, j] > thresh[j]))[0]
+            cls_scores = scores[inds, j]
+            cls_boxes = boxes[inds, j*4:(j+1)*4]
+            top_inds = np.argsort(-cls_scores)[:max_per_image]
+            cls_scores = cls_scores[top_inds]
+            cls_boxes = cls_boxes[top_inds, :]
+            for val in cls_scores:
+                heapq.heappush(top_scores[j], val)
+            if len(top_scores[j]) > max_per_set:
+                while len(top_scores[j]) > max_per_set:
+                    heapq.heappop(top_scores[j])
+                thresh[j] = top_scores[j][0]
+
+            all_boxes[j+1][i] = np.hstack((cls_boxes, cls_scores[:, np.newaxis])).astype(np.float32, copy=False)
+    
+        #extend_results(i, all_boxes, cls_boxes_i)
 
         if i % 10 == 0:  # Reduce log file size
             ave_total_time = np.sum([t.average_time for t in timers.values()])
@@ -281,21 +305,13 @@ def test_net(
                     start_ind + num_images, det_time, misc_time, eta
                 )
             )
+    
+    for j in range(num_classes-1):
+        for i in range(num_images):
+            inds = np.where(all_boxes[j+1][i][:, -1] > thresh[j])[0]
+            all_boxes[j+1][i] = all_boxes[j+1][i][inds, :]
 
-        if cfg.VIS:
-            im_name = os.path.splitext(os.path.basename(entry['image']))[0]
-            vis_utils.vis_one_image(
-                im[:, :, ::-1],
-                '{:d}_{:s}'.format(i, im_name),
-                os.path.join(output_dir, 'vis'),
-                cls_boxes_i,
-                segms=cls_segms_i,
-                keypoints=cls_keyps_i,
-                thresh=cfg.VIS_TH,
-                box_alpha=0.8,
-                dataset=dataset,
-                show_class=True
-            )
+    all_boxes = apply_nms(all_boxes, cfg.TEST.NMS)
 
     cfg_yaml = yaml.dump(cfg)
     if ind_range is not None:

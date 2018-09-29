@@ -24,7 +24,7 @@ import utils.misc as misc_utils
 from core.config import cfg, cfg_from_file, cfg_from_list, assert_and_infer_cfg
 from datasets.roidb import combined_roidb_for_training
 from roi_data.loader_weak import RoiDataLoader, MinibatchSampler, BatchSampler, collate_minibatch
-from modeling.model_weak_builder import Generalized_RCNN
+from modeling.model_weak_resnet_builder import Generalized_RCNN
 from utils.detectron_weight_helper import load_detectron_weight
 from utils.logging import setup_logging
 from utils.timer import Timer
@@ -293,6 +293,9 @@ def main():
     assert (gn_param_nameset - set(nograd_param_names) - set(bias_param_names)) == set(gn_param_names)
 
 
+    print(refine_weight_param_names, refine_bias_param_names)
+    print(bias_param_names)
+    print(nonbias_param_names)
     # Learning rate of 0 is a dummy value to be set properly at the start of training
     params = [
         {'params': nonbias_params,

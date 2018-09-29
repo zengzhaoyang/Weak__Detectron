@@ -31,13 +31,13 @@ class VGG_conv5_body(nn.Module):
         self.conv4_1 = nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1, bias=True)
         self.conv4_2 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=True)
         self.conv4_3 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=True)
-        self.pool4 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
-        self.conv5_1 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, dilation=1, bias=True)
-        self.conv5_2 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, dilation=1, bias=True)
-        self.conv5_3 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, dilation=1, bias=True)
+        #self.pool4 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+        self.conv5_1 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=2, dilation=2, bias=True)
+        self.conv5_2 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=2, dilation=2, bias=True)
+        self.conv5_3 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=2, dilation=2, bias=True)
   
         self.dim_out = 512
-        self.spatial_scale = 1. / 16
+        self.spatial_scale = 1. / 8
         self._init_modules()
 
     def _init_modules(self):
@@ -45,6 +45,7 @@ class VGG_conv5_body(nn.Module):
         freeze_params(self.conv1_2)
         freeze_params(self.conv2_1)
         freeze_params(self.conv2_2)
+        pass
 
 
     def detectron_weight_mapping(self):
@@ -82,6 +83,10 @@ class VGG_conv5_body(nn.Module):
     def train(self, mode=True):
         # Override
         self.training = mode
+        self.conv1_1.train(mode)
+        self.conv1_2.train(mode)
+        self.conv2_1.train(mode)
+        self.conv2_2.train(mode)
         self.conv3_1.train(mode)
         self.conv3_2.train(mode)
         self.conv3_3.train(mode)
@@ -106,7 +111,7 @@ class VGG_conv5_body(nn.Module):
         x = F.relu(self.conv4_1(x), inplace=True)
         x = F.relu(self.conv4_2(x), inplace=True)
         x = F.relu(self.conv4_3(x), inplace=True)
-        x = self.pool4(x)
+        #x = self.pool4(x)
         x = F.relu(self.conv5_1(x), inplace=True)
         x = F.relu(self.conv5_2(x), inplace=True)
         x = F.relu(self.conv5_3(x), inplace=True)
@@ -124,7 +129,9 @@ class VGG_roi_fc_head(nn.Module):
 
         #roi_size = cfg.FAST_RCNN.ROI_XFORM_RESOLUTION
         self.fc1 = nn.Linear(dim_in * self.roi_size**2, hidden_dim)
+        self.dropout1 = nn.Dropout(0.5, inplace=True)
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.dropout2 = nn.Dropout(0.5, inplace=True)
 
     def detectron_weight_mapping(self):
         detectron_weight_mapping = {
@@ -134,6 +141,12 @@ class VGG_roi_fc_head(nn.Module):
             'fc2.bias': 'fc7_b'
         }
         return detectron_weight_mapping, []
+
+    def train(self, mode=True):
+        # Override
+        self.training = mode
+        self.dropout1.train(mode)
+        self.dropout2.train(mode)
 
     def forward(self, x, rpn_ret):
         x = self.roi_xform(
@@ -146,7 +159,9 @@ class VGG_roi_fc_head(nn.Module):
         )
         batch_size = x.size(0)
         x = F.relu(self.fc1(x.view(batch_size, -1)), inplace=True)
+        #x = self.dropout1(x)
         x = F.relu(self.fc2(x), inplace=True)
+        #x = self.dropout2(x)
 
         return x
 

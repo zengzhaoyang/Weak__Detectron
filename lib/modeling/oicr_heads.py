@@ -78,6 +78,7 @@ class oicr_outputs(nn.Module):
             return bbox_mul, cls_refine1, cls_refine2, cls_refine3
         else:
             return (cls_refine1 + cls_refine2 + cls_refine3) / 3.
+            #return cls_refine1
 
 
 
@@ -94,7 +95,7 @@ def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refin
     label = label[1:]
     img_label = label.cpu().numpy().astype(np.float)
 
-    cls_loss = -label * torch.log(y + 1e-8) - (1-label) * torch.log(1 - y + 1e-8)
+    cls_loss = -label * torch.log(y + 1e-6) - (1-label) * torch.log(1 - y + 1e-6)
     cls_loss = cls_loss.sum()
 
     def _get_highest_score_proposals(boxes, cls_prob, im_labels):
@@ -138,26 +139,24 @@ def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refin
     rois_npy = rois.cpu().numpy()[:, 1:]
     proposals1 = _get_highest_score_proposals(rois_npy, bbox_mul.detach().cpu().numpy(), img_label)
     label1 = _sample_rois(rois_npy, proposals1)
-    #if device_id == 1:
-    #    print('refine1', (label1 != 0).sum(), (label1[:, 1:] != 0).sum())
-    #    print('refine1', label1[:, 1:].max(), cls_refine1.argmax(dim=1).sum().detach().cpu().numpy())
+    #if device_id == 0:
+    #    print('refine1', bbox_mul.max().detach().cpu().numpy())
     label1 = Variable(torch.from_numpy(label1)).cuda().float() # r * 21
-    refine_loss1 = torch.sum(torch.sum(-label1 * torch.log(cls_refine1 + 1e-8), dim=1), dim=0) / (torch.sum(label1 > 1e-12).float() + 1e-8)
+    refine_loss1 = torch.sum(torch.sum(-label1 * torch.log(cls_refine1 + 1e-6), dim=1), dim=0) / (torch.sum(label1 > 1e-12).float() + 1e-8)
 
     proposals2 = _get_highest_score_proposals(rois_npy, cls_refine1[:, 1:].detach().cpu().numpy(), img_label)
     label2 = _sample_rois(rois_npy, proposals2)
-    #if device_id == 1:
-    #    print('refine2', label2[:, 1:].max(), cls_refine2.argmax(dim=1).sum().detach().cpu().numpy())
+    #if device_id == 0:
+    #    print('refine2', cls_refine1[:, 1:].max().detach().cpu().numpy(), cls_refine1.argmax(dim=1).sum().detach().cpu().numpy())
     label2 = Variable(torch.from_numpy(label2)).cuda().float() # r * 21
-    refine_loss2 = torch.sum(torch.sum(-label2 * torch.log(cls_refine2 + 1e-8), dim=1), dim=0) / (torch.sum(label2 > 1e-12).float() + 1e-8)
+    refine_loss2 = torch.sum(torch.sum(-label2 * torch.log(cls_refine2 + 1e-6), dim=1), dim=0) / (torch.sum(label2 > 1e-12).float() + 1e-8)
 
     proposals3 = _get_highest_score_proposals(rois_npy, cls_refine2[:, 1:].detach().cpu().numpy(), img_label)
     label3 = _sample_rois(rois_npy, proposals3)
-    #if device_id == 1:
-    #    print('refine3', (label3 != 0).sum(), (label3[:, 1:] != 0).sum())
-    #    print('refine3', label3[:, 1:].max())
+    #if device_id == 0:
+    #    print('refine3', cls_refine2[:, 1:].max().detach().cpu().numpy(), cls_refine2.argmax(dim=1).sum().detach().cpu().numpy())
     label3 = Variable(torch.from_numpy(label3)).cuda().float() # r * 21
-    refine_loss3 = torch.sum(torch.sum(-label3 * torch.log(cls_refine3 + 1e-8), dim=1), dim=0) / (torch.sum(label3 > 1e-12).float() + 1e-8)
+    refine_loss3 = torch.sum(torch.sum(-label3 * torch.log(cls_refine3 + 1e-6), dim=1), dim=0) / (torch.sum(label3 > 1e-12).float() + 1e-8)
 
     #idx = torch.argmax(bbox_mul, dim=0).cpu().numpy().astype(np.int) # 20
     #maxprob, _ = torch.max(bbox_mul, dim=0) #20
@@ -208,55 +207,6 @@ def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refin
 
     return cls_loss, refine_loss1, refine_loss2, refine_loss3
 
-
-#def _get_highest_score_proposals(boxes, cls_prob, label):
-#   
-#    gt_boxes = np.zeros((0, 4), dtype=np.float32)
-#    gt_classes = np.zeros((0, 1), dtype=int32)
-#    gt_scores = np.zeros((0, 1), dtype=np.float32)
-#
-#    for i in range(cfg.MODEL.NUM_CLASSES):
-#        if label[i] == 1:
-#            cls_prob_tmp = cls_prob[:, i].copy()
-#            max_index = np.argmax(cls_prob_tmp)
-#
-#            gt_boxes = np.vstack((gt_boxes, boxes[max_index, :].reshape(1, -1)))
-#            gt_classes = np.vstack((gt_classes, (i+1) * np.ones((1, 1), dtype=int32)))
-#            gt_scores = np.vstack((gt_scores, cls_prob_tmp[max_index] * np.ones((1, 1), dtype=np.float32)))
-#            cls_prob[max_index, :] = 0
-#
-#    proposals = {'gt_boxes': gt_boxes, 'gt_classes': gt_classes, 'gt_scores': gt_scores}
-#    return proposals
-#
-#def _sample_rois(all_rois, proposals, num_classes):
-#    """Generate a random sample of RoIs comprising foreground and background
-#    examples.
-#    """
-#    # overlaps: (rois x gt_boxes)
-#    gt_boxes = proposals['gt_boxes']
-#    gt_labels = proposals['gt_classes']
-#    gt_scores = proposals['gt_scores']
-#    overlaps = bbox_overlaps(
-#        np.ascontiguousarray(all_rois, dtype=np.float),
-#        np.ascontiguousarray(gt_boxes, dtype=np.float))
-#    gt_assignment = overlaps.argmax(axis=1)
-#    max_overlaps = overlaps.max(axis=1)
-#    labels = gt_labels[gt_assignment, 0]
-#    cls_loss_weights = gt_scores[gt_assignment, 0]
-#
-#    # Select foreground RoIs as those with >= FG_THRESH overlap
-#    fg_inds = np.where(max_overlaps >= 0.25)[0]
-#
-#    # Select background RoIs as those within [BG_THRESH_LO, BG_THRESH_HI)
-#    bg_inds = np.where(max_overlaps < 0.25)[0]
-#
-#
-#    labels[bg_inds] = 0
-#
-#    rois = all_rois
-#
-#    return labels, rois, cls_loss_weights
-          
 
 # ---------------------------------------------------------------------------- #
 # Box heads
