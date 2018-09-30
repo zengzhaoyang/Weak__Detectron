@@ -162,6 +162,11 @@ def im_detect_bbox_aug(model, im, box_proposals=None):
         scores_ts.append(scores_t)
         boxes_ts.append(boxes_t)
 
+    scores_i, boxes_i, im_scale_i, blob_conv_i = im_detect_bbox(
+        model, im, cfg.TEST.SCALE, cfg.TEST.MAX_SIZE, boxes=box_proposals
+    )
+    add_preds_t(scores_i, boxes_i)
+
     # Perform detection on the horizontally flipped image
     if cfg.TEST.BBOX_AUG.H_FLIP:
         scores_hf, boxes_hf, _ = im_detect_bbox_hflip(
@@ -187,27 +192,9 @@ def im_detect_bbox_aug(model, im, box_proposals=None):
             )
             add_preds_t(scores_scl_hf, boxes_scl_hf)
 
-    # Perform detection at different aspect ratios
-    for aspect_ratio in cfg.TEST.BBOX_AUG.ASPECT_RATIOS:
-        scores_ar, boxes_ar = im_detect_bbox_aspect_ratio(
-            model, im, aspect_ratio, box_proposals
-        )
-        add_preds_t(scores_ar, boxes_ar)
-
-        if cfg.TEST.BBOX_AUG.ASPECT_RATIO_H_FLIP:
-            scores_ar_hf, boxes_ar_hf = im_detect_bbox_aspect_ratio(
-                model, im, aspect_ratio, box_proposals, hflip=True
-            )
-            add_preds_t(scores_ar_hf, boxes_ar_hf)
-
     # Compute detections for the original image (identity transform) last to
     # ensure that the Caffe2 workspace is populated with blobs corresponding
     # to the original image on return (postcondition of im_detect_bbox)
-    scores_i, boxes_i, im_scale_i, blob_conv_i = im_detect_bbox(
-        model, im, cfg.TEST.SCALE, cfg.TEST.MAX_SIZE, boxes=box_proposals
-    )
-    add_preds_t(scores_i, boxes_i)
-
     # Combine the predicted scores
     if cfg.TEST.BBOX_AUG.SCORE_HEUR == 'ID':
         scores_c = scores_i

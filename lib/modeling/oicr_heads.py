@@ -30,11 +30,11 @@ class oicr_outputs(nn.Module):
         init.constant_(self.cls_score.bias, 0)
         init.normal_(self.bbox_pred.weight, std=0.001)
         init.constant_(self.bbox_pred.bias, 0)
-        init.normal_(self.cls_refine1.weight, std=0.001)
+        init.normal_(self.cls_refine1.weight, std=0.01)
         init.constant_(self.cls_refine1.bias, 0)
-        init.normal_(self.cls_refine2.weight, std=0.001)
+        init.normal_(self.cls_refine2.weight, std=0.01)
         init.constant_(self.cls_refine2.bias, 0)
-        init.normal_(self.cls_refine3.weight, std=0.001)
+        init.normal_(self.cls_refine3.weight, std=0.01)
         init.constant_(self.cls_refine3.bias, 0)
 
 

@@ -11,20 +11,26 @@ from torch._six import int_classes as _int_classes
 from core.config import cfg
 from roi_data.minibatch_weak import get_minibatch
 import utils.blob as blob_utils
+import pickle
 # from model.rpn.bbox_transform import bbox_transform_inv, clip_boxes
 
 
 class RoiDataLoader(data.Dataset):
-    def __init__(self, roidb, num_classes, training=True):
+    def __init__(self, roidb, num_classes, training=True, preloads_name=None):
         self._roidb = roidb
         self._num_classes = num_classes
         self.training = training
         self.DATA_SIZE = len(self._roidb)
+        if preloads_name is None:
+            self.preloads = None
+        else:
+            self.preloads = pickle.load(open(preloads_name, 'rb'))
+            print('load  ', preloads_name)
 
     def __getitem__(self, index_tuple):
         index, ratio = index_tuple
         single_db = [self._roidb[index]]
-        blobs, valid = get_minibatch(single_db)
+        blobs, valid = get_minibatch(single_db, self.preloads)
         #TODO: Check if minibatch is valid ? If not, abandon it.
         # Need to change _worker_loop in torch.utils.data.dataloader.py.
 

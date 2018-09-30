@@ -159,9 +159,9 @@ class VGG_roi_fc_head(nn.Module):
         )
         batch_size = x.size(0)
         x = F.relu(self.fc1(x.view(batch_size, -1)), inplace=True)
-        #x = self.dropout1(x)
+        x = self.dropout1(x)
         x = F.relu(self.fc2(x), inplace=True)
-        #x = self.dropout2(x)
+        x = self.dropout2(x)
 
         return x
 

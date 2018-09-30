@@ -232,5 +232,13 @@ DATASETS = {
             _DATA_DIR + '/VOC2012/annotations/pascal_val2012.json',
         DEVKIT_DIR:
             _DATA_DIR + '/VOC2012/VOCdevkit'
+    },
+    'voc_oneshot': {
+        IM_DIR:
+            _DATA_DIR + '/VOC2007/JPEGImages',
+        ANN_FN:
+            _DATA_DIR + '/VOC2007/annotations/pascal_oneshot.json',
+        DEVKIT_DIR:
+            _DATA_DIR + '/VOC2007/VOCdevkit'
     }
 }

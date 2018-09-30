@@ -239,7 +239,8 @@ def main():
     dataset = RoiDataLoader(
         roidb,
         cfg.MODEL.NUM_CLASSES,
-        training=True)
+        training=True,
+        preloads_name='data/VOC2007/voc_2007_trainval.pkl')
     dataloader = torch.utils.data.DataLoader(
         dataset,
         batch_sampler=batchSampler,

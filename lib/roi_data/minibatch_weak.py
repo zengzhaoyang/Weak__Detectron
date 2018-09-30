@@ -17,20 +17,20 @@ def get_minibatch_blob_names(is_training=True):
     return blob_names
 
 
-def get_minibatch(roidb):
+def get_minibatch(roidb, preloads=None):
     """Given a roidb, construct a minibatch sampled from it."""
     # We collect blobs from each image onto a list and then concat them into a
     # single tensor, hence we initialize each blob to an empty list
     blobs = {k: [] for k in get_minibatch_blob_names()}
 
     # Get the input image blob
-    im_blob, im_scales = _get_image_blob(roidb)
+    im_blob, im_scales = _get_image_blob(roidb, preloads)
     blobs['data'] = im_blob
     valid = roi_data.wsddn.add_wsddn_blobs(blobs, im_scales, roidb)
     return blobs, valid
 
 
-def _get_image_blob(roidb):
+def _get_image_blob(roidb, preloads=None):
     """Builds an input blob from the images in the roidb at the specified
     scales.
     """
@@ -41,7 +41,10 @@ def _get_image_blob(roidb):
     processed_ims = []
     im_scales = []
     for i in range(num_images):
-        im = cv2.imread(roidb[i]['image'])
+        if preloads is None:
+            im = cv2.imread(roidb[i]['image'])
+        else:
+            im = preloads[roidb[i]['image'].split('/')[-1].split('.')[0]].copy()
         assert im is not None, \
             'Failed to read image \'{}\''.format(roidb[i]['image'])
         # If NOT using opencv to read in images, uncomment following lines
