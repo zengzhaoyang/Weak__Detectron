@@ -141,10 +141,11 @@ def get_im_blob_sizes(im_shape, target_sizes, max_size):
 def get_target_scale(im_size_min, im_size_max, target_size, max_size):
     """Calculate target resize scale
     """
-    im_scale = float(target_size) / float(im_size_min)
-    # Prevent the biggest axis from being more than max_size
-    if np.round(im_scale * im_size_max) > max_size:
-        im_scale = float(max_size) / float(im_size_max)
+    #im_scale = float(target_size) / float(im_size_min)
+    ## Prevent the biggest axis from being more than max_size
+    #if np.round(im_scale * im_size_max) > max_size:
+    #    im_scale = float(max_size) / float(im_size_max)
+    im_scale = float(target_size) / float(im_size_max)
     return im_scale
 
 

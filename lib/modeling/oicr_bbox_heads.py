@@ -12,12 +12,16 @@ import utils.net as net_utils
 from iou_cal import assign_iou, assign_label
 #from featuredist_cal import assign_featuredist
 from iou_cal import bbox_overlaps
+import utils.net as net_utils
+import utils.boxes as box_utils
 
 class oicr_outputs(nn.Module):
     def __init__(self, dim_in):
         super().__init__()
-        self.cls_score = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES-1)
-        self.bbox_pred = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES-1)
+        self.cls_score0 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES-1)
+        self.cls_score1 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES-1)
+
+        self.bbox_pred = nn.Linear(dim_in, 4 * 2)
 
         self.cls_refine1 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
         self.cls_refine2 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
@@ -26,9 +30,11 @@ class oicr_outputs(nn.Module):
         self._init_weights()
 
     def _init_weights(self):
-        init.normal_(self.cls_score.weight, std=0.01)
-        init.constant_(self.cls_score.bias, 0)
-        init.normal_(self.bbox_pred.weight, std=0.01)
+        init.normal_(self.cls_score0.weight, std=0.01)
+        init.constant_(self.cls_score0.bias, 0)
+        init.normal_(self.cls_score1.weight, std=0.01)
+        init.constant_(self.cls_score1.bias, 0)
+        init.normal_(self.bbox_pred.weight, std=0.001)
         init.constant_(self.bbox_pred.bias, 0)
         init.normal_(self.cls_refine1.weight, std=0.01)
         init.constant_(self.cls_refine1.bias, 0)
@@ -40,8 +46,10 @@ class oicr_outputs(nn.Module):
 
     def detectron_weight_mapping(self):
         detectron_weight_mapping = {
-            'cls_score.weight': 'cls_score_w',
-            'cls_score.bias': 'cls_score_b',
+            'cls_score0.weight': 'cls_score0_w',
+            'cls_score0.bias': 'cls_score0_b',
+            'cls_score1.weight': 'cls_score1_w',
+            'cls_score1.bias': 'cls_score1_b',
             'bbox_pred.weight': 'bbox_pred_w',
             'bbox_pred.bias': 'bbox_pred_b',
             'cls_refine1.weight': 'cls_refine1_w',
@@ -58,12 +66,14 @@ class oicr_outputs(nn.Module):
     def forward(self, x):
         if x.dim() == 4:
             x = x.squeeze(3).squeeze(2)
-        cls_score = self.cls_score(x)
-        cls_score = F.softmax(cls_score, dim=1)
-        bbox_pred = self.bbox_pred(x)
-        bbox_pred = F.softmax(bbox_pred, dim=0)
+        cls_score0 = self.cls_score0(x)
+        cls_score0 = F.softmax(cls_score0, dim=1)
+        cls_score1 = self.cls_score1(x)
+        cls_score1 = F.softmax(cls_score1, dim=0)
 
-        bbox_mul = cls_score * bbox_pred
+        bbox_pred = self.bbox_pred(x)
+
+        bbox_mul = cls_score0 * cls_score1
 
         cls_refine1 = self.cls_refine1(x)
         cls_refine1 = F.softmax(cls_refine1, dim=1)
@@ -75,14 +85,14 @@ class oicr_outputs(nn.Module):
 
 
         if self.training:
-            return bbox_mul, cls_refine1, cls_refine2, cls_refine3
+            return bbox_mul, cls_refine1, cls_refine2, cls_refine3, bbox_pred
         else:
             #x = cls_refine1 + cls_refine2 + cls_refine3
-            return cls_refine1 + cls_refine2 + cls_refine3
+            return cls_refine1 + cls_refine2 + cls_refine3, bbox_pred
 
 
 
-def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refine3):
+def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refine3, bbox_pred):
 
     y = bbox_mul.sum(dim=0)
 
@@ -117,7 +127,7 @@ def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refin
         proposals = {'gt_boxes': gt_boxes, 'gt_classes': gt_classes, 'gt_scores': gt_scores}
         return proposals
 
-    def _sample_rois(all_rois, proposals):
+    def _sample_rois(all_rois, proposals, with_bbox=False):
         gt_boxes = proposals['gt_boxes']
         gt_labels = proposals['gt_classes']
         gt_scores = proposals['gt_scores']
@@ -135,7 +145,22 @@ def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refin
         newlabels = np.eye(21)[labels]
         cls_loss_weights = np.reshape(cls_loss_weights, (cls_loss_weights.shape[0], 1))
         newlabels = newlabels * cls_loss_weights
-        return newlabels
+
+        if with_bbox:
+            gt_boxes = gt_boxes[gt_assigment, :]
+
+            bbox_target_data = box_utils.bbox_transform_inv(all_rois, gt_boxes, cfg.MODEL.BBOX_REG_WEIGHTS)
+            bbox_targets = np.zeros((all_rois.shape[0], 4 * 2))
+            bbox_targets[fg_inds, 4:8] = bbox_target_data[fg_inds, :]
+
+            bbox_inside_weights = np.zeros((all_rois.shape[0], 4 * 2))
+            bbox_inside_weights[fg_inds, :] = cls_loss_weights[fg_inds]
+            bbox_outside_weights = (bbox_inside_weights > 0).astype(np.float32)
+
+            return newlabels, gt_boxes, bbox_targets, bbox_inside_weights, bbox_outside_weights
+
+        else:
+            return newlabels
 
     rois_npy = rois.cpu().numpy()[:, 1:]
     proposals1 = _get_highest_score_proposals(rois_npy, bbox_mul.detach().cpu().numpy(), img_label)
@@ -151,12 +176,18 @@ def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refin
     refine_loss2 = torch.sum(torch.sum(-label2 * torch.log(cls_refine2), dim=1), dim=0) / torch.clamp(torch.sum(label2 > 1e-12).float(), 1., 999999999.)
 
     proposals3 = _get_highest_score_proposals(rois_npy, cls_refine2[:, 1:].detach().cpu().numpy(), img_label)
-    label3 = _sample_rois(rois_npy, proposals3)
+    label3, gt_boxes, bbox_targets, bbox_inside_weights, bbox_outside_weights = _sample_rois(rois_npy, proposals3, with_bbox=True)
     label3 = Variable(torch.from_numpy(label3)).cuda().float() # r * 21
     cls_refine3 = torch.clamp(cls_refine3, 1e-6, 1-1e-6)
     refine_loss3 = torch.sum(torch.sum(-label3 * torch.log(cls_refine3), dim=1), dim=0) / torch.clamp(torch.sum(label3 > 1e-12).float(), 1., 999999999.)
 
-    return cls_loss, refine_loss1, refine_loss2, refine_loss3
+
+    bbox_targets = Variable(torch.from_numpy(bbox_targets)).cuda().float()
+    bbox_inside_weights = Variable(torch.from_numpy(bbox_inside_weights)).cuda().float()
+    bbox_outside_weights = Variable(torch.from_numpy(bbox_outside_weights)).cuda().float()
+    loss_bbox = 5. * net_utils.smooth_l1_loss(bbox_pred, bbox_targets, bbox_inside_weights, bbox_outside_weights)
+
+    return cls_loss, refine_loss1, refine_loss2, refine_loss3, loss_bbox
 
 
 # ---------------------------------------------------------------------------- #

@@ -11,8 +11,8 @@ from core.config import cfg
 from model.roi_pooling.functions.roi_pool import RoIPoolFunction
 from model.roi_crop.functions.roi_crop import RoICropFunction
 from modeling.roi_xfrom.roi_align.functions.roi_align import RoIAlignFunction
-#import modeling.wsddn_heads as wsddn_heads
-import modeling.oicr_heads as oicr_heads
+#import modeling.oicr_heads as oicr_heads
+import modeling.oicr_bbox_heads as oicr_heads
 import utils.blob as blob_utils
 import utils.net as net_utils
 #import utils.resnet_weights_helper as resnet_utils
@@ -129,19 +129,18 @@ class Generalized_RCNN(nn.Module):
         if self.training:
 
             #y = self.Box_Outs(box_feat)
-            bbox_mul, cls_refine1, cls_refine2, cls_refine3 = self.Box_Outs(box_feat)
+            bbox_mul, cls_refine1, cls_refine2, cls_refine3, bbox_pred = self.Box_Outs(box_feat)
 
             return_dict['losses'] = {}
             return_dict['metrics'] = {}
 
             # bbox loss
-            #loss = wsddn_heads.wsddn_losses(
-            #     y, labels_int32)
-            cls_loss, refine_loss1, refine_loss2, refine_loss3 = oicr_heads.oicr_losses(rois, bbox_mul, labels_int32, cls_refine1, cls_refine2, cls_refine3)
+            cls_loss, refine_loss1, refine_loss2, refine_loss3, bbox_loss = oicr_heads.oicr_losses(rois, bbox_mul, labels_int32, cls_refine1, cls_refine2, cls_refine3, bbox_pred)
             return_dict['losses']['cls_loss'] = cls_loss
             return_dict['losses']['refine_loss1'] = refine_loss1
             return_dict['losses']['refine_loss2'] = refine_loss2
             return_dict['losses']['refine_loss3'] = refine_loss3
+            return_dict['losses']['bbox_loss'] = bbox_loss
             return_dict['metrics']['cls_loss'] = cls_loss
 
             # pytorch0.4 bug on gathering scalar(0-dim) tensors
