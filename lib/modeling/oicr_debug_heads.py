@@ -21,11 +21,7 @@ class oicr_outputs(nn.Module):
         self.cls_score0 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES-1)
         self.cls_score1 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES-1)
 
-        if cfg.MODEL.CLS_AGNOSTIC_BBOX_REG:
-            self.reg_num = cfg.MODEL.NUM_CLASSES
-        else:
-            self.reg_num = 2 
-        self.bbox_pred = nn.Linear(dim_in, 4 * self.reg_num)
+        self.bbox_pred = nn.Linear(dim_in, 4 * 2)
 
         self.cls_refine1 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
         self.cls_refine2 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
@@ -70,29 +66,7 @@ class oicr_outputs(nn.Module):
     def forward(self, x):
         if x.dim() == 4:
             x = x.squeeze(3).squeeze(2)
-        cls_score0 = self.cls_score0(x)
-        cls_score0 = F.softmax(cls_score0, dim=1)
-        cls_score1 = self.cls_score1(x)
-        cls_score1 = F.softmax(cls_score1, dim=0)
-
-        bbox_pred = self.bbox_pred(x)
-
-        bbox_mul = cls_score0 * cls_score1
-
-        cls_refine1 = self.cls_refine1(x)
-        cls_refine1 = F.softmax(cls_refine1, dim=1)
-        cls_refine2 = self.cls_refine2(x)
-        cls_refine2 = F.softmax(cls_refine2, dim=1)
-        cls_refine3 = self.cls_refine3(x)
-        cls_refine3 = F.softmax(cls_refine3, dim=1)
-
-
-
-        if self.training:
-            return bbox_mul, cls_refine1, cls_refine2, cls_refine3, bbox_pred
-        else:
-            #x = cls_refine1 + cls_refine2 + cls_refine3
-            return cls_refine1 + cls_refine2 + cls_refine3, bbox_pred
+        return x
 
 
 
@@ -158,7 +132,7 @@ def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refin
             bbox_targets[fg_inds, 4:8] = bbox_target_data[fg_inds, :]
 
             bbox_inside_weights = np.zeros((all_rois.shape[0], 4 * 2))
-            bbox_inside_weights[fg_inds, 4:8] = cls_loss_weights[fg_inds]
+            bbox_inside_weights[fg_inds, :] = cls_loss_weights[fg_inds]
             bbox_outside_weights = (bbox_inside_weights > 0).astype(np.float32)
 
             return newlabels, gt_boxes, bbox_targets, bbox_inside_weights, bbox_outside_weights
@@ -180,19 +154,16 @@ def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refin
     refine_loss2 = torch.sum(torch.sum(-label2 * torch.log(cls_refine2), dim=1), dim=0) / torch.clamp(torch.sum(label2 > 1e-12).float(), 1., 999999999.)
 
     proposals3 = _get_highest_score_proposals(rois_npy, cls_refine2[:, 1:].detach().cpu().numpy(), img_label)
-    label3 = _sample_rois(rois_npy, proposals3)
+    label3, gt_boxes, bbox_targets, bbox_inside_weights, bbox_outside_weights = _sample_rois(rois_npy, proposals3, with_bbox=True)
     label3 = Variable(torch.from_numpy(label3)).cuda().float() # r * 21
     cls_refine3 = torch.clamp(cls_refine3, 1e-6, 1-1e-6)
     refine_loss3 = torch.sum(torch.sum(-label3 * torch.log(cls_refine3), dim=1), dim=0) / torch.clamp(torch.sum(label3 > 1e-12).float(), 1., 999999999.)
 
 
-    proposals_mix = _get_highest_score_proposals(rois_npy, ((cls_refine1 + cls_refine2 + cls_refine3)/3).detach().cpu().numpy(), img_label)
-    _, _, bbox_targets, bbox_inside_weights, bbox_outside_weights = _sample_rois(rois_npy, proposals_mix, with_bbox=True)
-
     bbox_targets = Variable(torch.from_numpy(bbox_targets)).cuda().float()
     bbox_inside_weights = Variable(torch.from_numpy(bbox_inside_weights)).cuda().float()
     bbox_outside_weights = Variable(torch.from_numpy(bbox_outside_weights)).cuda().float()
-    loss_bbox = 30. * net_utils.smooth_l1_loss(bbox_pred, bbox_targets, bbox_inside_weights, bbox_outside_weights)
+    loss_bbox = 25. * net_utils.smooth_l1_loss(bbox_pred, bbox_targets, bbox_inside_weights, bbox_outside_weights)
 
     return cls_loss, refine_loss1, refine_loss2, refine_loss3, loss_bbox
 

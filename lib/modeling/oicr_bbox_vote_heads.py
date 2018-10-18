@@ -25,6 +25,7 @@ class oicr_outputs(nn.Module):
             self.reg_num = cfg.MODEL.NUM_CLASSES
         else:
             self.reg_num = 2 
+
         self.bbox_pred = nn.Linear(dim_in, 4 * self.reg_num)
 
         self.cls_refine1 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
@@ -131,7 +132,7 @@ def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refin
         proposals = {'gt_boxes': gt_boxes, 'gt_classes': gt_classes, 'gt_scores': gt_scores}
         return proposals
 
-    def _sample_rois(all_rois, proposals, with_bbox=False):
+    def _sample_rois(all_rois, proposals, reg_num, with_bbox=False, probs=None):
         gt_boxes = proposals['gt_boxes']
         gt_labels = proposals['gt_classes']
         gt_scores = proposals['gt_scores']
@@ -150,49 +151,77 @@ def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refin
         cls_loss_weights = np.reshape(cls_loss_weights, (cls_loss_weights.shape[0], 1))
         newlabels = newlabels * cls_loss_weights
 
+
         if with_bbox:
-            gt_boxes = gt_boxes[gt_assigment, :]
+            # vote
+            top_dets_out = gt_boxes.copy()
+            top_to_all_overlaps = overlaps.T
+            vote_thresh = 0.8
+            
+            for k in range(top_dets_out.shape[0]):
+                inds_to_vote = np.where(top_to_all_overlaps[k] >= vote_thresh)[0]
+                if inds_to_vote.shape[0] == 0:
+                    continue
+                boxes_to_vote = all_rois[inds_to_vote, :]
+                ws = probs[inds_to_vote, gt_labels[k]].reshape((inds_to_vote.shape[0], ))
+                if ws.sum() > 1e-14:
+                    top_dets_out[k, :] = np.average(boxes_to_vote, axis=0, weights=ws)
 
-            bbox_target_data = box_utils.bbox_transform_inv(all_rois, gt_boxes, cfg.MODEL.BBOX_REG_WEIGHTS)
-            bbox_targets = np.zeros((all_rois.shape[0], 4 * 2))
-            bbox_targets[fg_inds, 4:8] = bbox_target_data[fg_inds, :]
+            new_gt_boxes = top_dets_out
+            new_gt_boxes = new_gt_boxes[gt_assigment, :]
+            # end vote
 
-            bbox_inside_weights = np.zeros((all_rois.shape[0], 4 * 2))
-            bbox_inside_weights[fg_inds, 4:8] = cls_loss_weights[fg_inds]
+            bbox_target_data = box_utils.bbox_transform_inv(all_rois, new_gt_boxes, cfg.MODEL.BBOX_REG_WEIGHTS)
+            bbox_targets = np.zeros((all_rois.shape[0], 4 * reg_num))
+            bbox_inside_weights = np.zeros((all_rois.shape[0], 4 * reg_num))
+
+            if cfg.MODEL.CLS_AGNOSTIC_BBOX_REG:
+                for j in fg_inds:
+                    bbox_targets[j, labels[j]*4:labels[j]*4+4] = bbox_target_data[j, :]
+                    bbox_inside_weights[j, labels[j]*4:labels[j]*4+4] = cls_loss_weights[j]
+            else:
+                bbox_targets[fg_inds, 4:8] = bbox_target_data[fg_inds, :]
+                bbox_inside_weights[fg_inds, 4:8] = cls_loss_weights[fg_inds]
+
             bbox_outside_weights = (bbox_inside_weights > 0).astype(np.float32)
-
-            return newlabels, gt_boxes, bbox_targets, bbox_inside_weights, bbox_outside_weights
+            return newlabels, new_gt_boxes, bbox_targets, bbox_inside_weights, bbox_outside_weights
 
         else:
             return newlabels
 
+    if cfg.MODEL.CLS_AGNOSTIC_BBOX_REG:
+        reg_num = cfg.MODEL.NUM_CLASSES
+    else:
+        reg_num = 2
+
     rois_npy = rois.cpu().numpy()[:, 1:]
     proposals1 = _get_highest_score_proposals(rois_npy, bbox_mul.detach().cpu().numpy(), img_label)
-    label1 = _sample_rois(rois_npy, proposals1)
+    label1 = _sample_rois(rois_npy, proposals1, reg_num)
     label1 = Variable(torch.from_numpy(label1)).cuda().float() # r * 21
     cls_refine1 = torch.clamp(cls_refine1, 1e-6, 1-1e-6)
     refine_loss1 = torch.sum(torch.sum(-label1 * torch.log(cls_refine1), dim=1), dim=0) / torch.clamp(torch.sum(label1 > 1e-12).float(), 1., 9999999999.)
 
     proposals2 = _get_highest_score_proposals(rois_npy, cls_refine1[:, 1:].detach().cpu().numpy(), img_label)
-    label2 = _sample_rois(rois_npy, proposals2)
+    label2 = _sample_rois(rois_npy, proposals2, reg_num)
     label2 = Variable(torch.from_numpy(label2)).cuda().float() # r * 21
     cls_refine2 = torch.clamp(cls_refine2, 1e-6, 1-1e-6)
     refine_loss2 = torch.sum(torch.sum(-label2 * torch.log(cls_refine2), dim=1), dim=0) / torch.clamp(torch.sum(label2 > 1e-12).float(), 1., 999999999.)
 
     proposals3 = _get_highest_score_proposals(rois_npy, cls_refine2[:, 1:].detach().cpu().numpy(), img_label)
-    label3 = _sample_rois(rois_npy, proposals3)
+    label3 = _sample_rois(rois_npy, proposals3, reg_num)
     label3 = Variable(torch.from_numpy(label3)).cuda().float() # r * 21
     cls_refine3 = torch.clamp(cls_refine3, 1e-6, 1-1e-6)
     refine_loss3 = torch.sum(torch.sum(-label3 * torch.log(cls_refine3), dim=1), dim=0) / torch.clamp(torch.sum(label3 > 1e-12).float(), 1., 999999999.)
 
 
-    proposals_mix = _get_highest_score_proposals(rois_npy, ((cls_refine1 + cls_refine2 + cls_refine3)/3).detach().cpu().numpy(), img_label)
-    _, _, bbox_targets, bbox_inside_weights, bbox_outside_weights = _sample_rois(rois_npy, proposals_mix, with_bbox=True)
+    probs_mix = ((cls_refine1 + cls_refine2 + cls_refine3)/3).detach().cpu().numpy()
+    proposals_mix = _get_highest_score_proposals(rois_npy, probs_mix, img_label)
+    _, _, bbox_targets, bbox_inside_weights, bbox_outside_weights = _sample_rois(rois_npy, proposals_mix, reg_num, with_bbox=True, probs=probs_mix)
 
     bbox_targets = Variable(torch.from_numpy(bbox_targets)).cuda().float()
     bbox_inside_weights = Variable(torch.from_numpy(bbox_inside_weights)).cuda().float()
     bbox_outside_weights = Variable(torch.from_numpy(bbox_outside_weights)).cuda().float()
-    loss_bbox = 30. * net_utils.smooth_l1_loss(bbox_pred, bbox_targets, bbox_inside_weights, bbox_outside_weights)
+    loss_bbox = 25. * net_utils.smooth_l1_loss(bbox_pred, bbox_targets, bbox_inside_weights, bbox_outside_weights)
 
     return cls_loss, refine_loss1, refine_loss2, refine_loss3, loss_bbox
 
