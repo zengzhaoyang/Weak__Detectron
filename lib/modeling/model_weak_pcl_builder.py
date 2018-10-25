@@ -12,10 +12,7 @@ from model.roi_pooling.functions.roi_pool import RoIPoolFunction
 from model.roi_crop.functions.roi_crop import RoICropFunction
 from modeling.roi_xfrom.roi_align.functions.roi_align import RoIAlignFunction
 #import modeling.oicr_heads as oicr_heads
-#import modeling.oicr_bbox_heads as oicr_heads
-#import modeling.pcl_bbox_vote_heads as pcl_heads
-import modeling.oicr_heads_b as oicr_heads
-
+import modeling.pcl_bbox_vote_heads as pcl_heads
 import utils.blob as blob_utils
 import utils.net as net_utils
 #import utils.resnet_weights_helper as resnet_utils
@@ -85,9 +82,8 @@ class Generalized_RCNN(nn.Module):
             self.Conv_Body.dim_out, self.roi_feature_transform, self.Conv_Body.spatial_scale)
         #self.Box_Outs = wsddn_heads.wsddn_outputs(
         #        self.Box_Head.dim_out)
-        self.Box_Outs = oicr_heads.oicr_outputs(self.Box_Head.dim_out)
-        #self.Box_Outs = pcl_heads.pcl_outputs(self.Box_Head.dim_out)
-
+        self.Box_Outs = pcl_heads.pcl_outputs(self.Box_Head.dim_out)
+        
 
         self._init_modules()
 
@@ -139,7 +135,7 @@ class Generalized_RCNN(nn.Module):
             return_dict['metrics'] = {}
 
             # bbox loss
-            cls_loss, refine_loss1, refine_loss2, refine_loss3, bbox_loss = oicr_heads.oicr_losses(rois, bbox_mul, labels_int32, cls_refine1, cls_refine2, cls_refine3, bbox_pred)
+            cls_loss, refine_loss1, refine_loss2, refine_loss3, bbox_loss = pcl_heads.pcl_losses(rois, bbox_mul, labels_int32, cls_refine1, cls_refine2, cls_refine3, bbox_pred)
             return_dict['losses']['cls_loss'] = cls_loss
             return_dict['losses']['refine_loss1'] = refine_loss1
             return_dict['losses']['refine_loss2'] = refine_loss2
@@ -155,11 +151,10 @@ class Generalized_RCNN(nn.Module):
 
         else:
             # Testing
-            bbox_mul, bbox_pred = self.Box_Outs(box_feat)
+            bbox_mul = self.Box_Outs(box_feat)
 
             return_dict['rois'] = rois
             return_dict['cls_score'] = bbox_mul
-            return_dict['bbox_pred'] = bbox_pred
 
         return return_dict
 

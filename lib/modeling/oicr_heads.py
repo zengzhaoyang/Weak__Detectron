@@ -16,8 +16,9 @@ from iou_cal import bbox_overlaps
 class oicr_outputs(nn.Module):
     def __init__(self, dim_in):
         super().__init__()
-        self.cls_score = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES-1)
-        self.bbox_pred = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES-1)
+        self.cls_score0 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES-1)
+        self.cls_score1 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES-1)
+
 
         self.cls_refine1 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
         self.cls_refine2 = nn.Linear(dim_in, cfg.MODEL.NUM_CLASSES)
@@ -26,10 +27,10 @@ class oicr_outputs(nn.Module):
         self._init_weights()
 
     def _init_weights(self):
-        init.normal_(self.cls_score.weight, std=0.01)
-        init.constant_(self.cls_score.bias, 0)
-        init.normal_(self.bbox_pred.weight, std=0.01)
-        init.constant_(self.bbox_pred.bias, 0)
+        init.normal_(self.cls_score0.weight, std=0.01)
+        init.constant_(self.cls_score0.bias, 0)
+        init.normal_(self.cls_score1.weight, std=0.01)
+        init.constant_(self.cls_score1.bias, 0)
         init.normal_(self.cls_refine1.weight, std=0.01)
         init.constant_(self.cls_refine1.bias, 0)
         init.normal_(self.cls_refine2.weight, std=0.01)
@@ -40,10 +41,10 @@ class oicr_outputs(nn.Module):
 
     def detectron_weight_mapping(self):
         detectron_weight_mapping = {
-            'cls_score.weight': 'cls_score_w',
-            'cls_score.bias': 'cls_score_b',
-            'bbox_pred.weight': 'bbox_pred_w',
-            'bbox_pred.bias': 'bbox_pred_b',
+            'cls_score0.weight': 'cls_score0_w',
+            'cls_score0.bias': 'cls_score0_b',
+            'cls_score1.weight': 'cls_score1_w',
+            'cls_score1.bias': 'cls_score1_b',
             'cls_refine1.weight': 'cls_refine1_w',
             'cls_refine1.bias': 'cls_refine1_b',
             'cls_refine2.weight': 'cls_refine2_w',
@@ -58,12 +59,14 @@ class oicr_outputs(nn.Module):
     def forward(self, x):
         if x.dim() == 4:
             x = x.squeeze(3).squeeze(2)
-        cls_score = self.cls_score(x)
-        cls_score = F.softmax(cls_score, dim=1)
-        bbox_pred = self.bbox_pred(x)
-        bbox_pred = F.softmax(bbox_pred, dim=0)
 
-        bbox_mul = cls_score * bbox_pred
+        cls_score0 = self.cls_score0(x)
+        cls_score0 = F.softmax(cls_score0, dim=1)
+        cls_score1 = self.cls_score1(x)
+        cls_score1 = F.softmax(cls_score1, dim=0)
+
+        bbox_mul = cls_score0 * cls_score1
+
 
         cls_refine1 = self.cls_refine1(x)
         cls_refine1 = F.softmax(cls_refine1, dim=1)
@@ -72,13 +75,15 @@ class oicr_outputs(nn.Module):
         cls_refine3 = self.cls_refine3(x)
         cls_refine3 = F.softmax(cls_refine3, dim=1)
 
+        print(cls_refine3.min(), cls_refine3[1:].min())
 
 
         if self.training:
             return bbox_mul, cls_refine1, cls_refine2, cls_refine3
         else:
             #x = cls_refine1 + cls_refine2 + cls_refine3
-            return cls_refine1 + cls_refine2 + cls_refine3
+            #return cls_refine1 + cls_refine2 + cls_refine3
+            return cls_refine3
 
 
 
@@ -142,6 +147,9 @@ def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refin
     label1 = _sample_rois(rois_npy, proposals1)
     label1 = Variable(torch.from_numpy(label1)).cuda().float() # r * 21
     cls_refine1 = torch.clamp(cls_refine1, 1e-6, 1-1e-6)
+
+    print(torch.sum(-label1 * torch.log(cls_refine1), dim=0))
+
     refine_loss1 = torch.sum(torch.sum(-label1 * torch.log(cls_refine1), dim=1), dim=0) / torch.clamp(torch.sum(label1 > 1e-12).float(), 1., 9999999999.)
 
     proposals2 = _get_highest_score_proposals(rois_npy, cls_refine1[:, 1:].detach().cpu().numpy(), img_label)

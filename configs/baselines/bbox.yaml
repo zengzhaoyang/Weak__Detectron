@@ -41,11 +41,11 @@ TEST:
   #RPN_POST_NMS_TOP_N: 1000
   PROPOSAL_FILES: ('data/selective_search_data/voc_2007_test.pkl',)
   BBOX_REG: true
-  BBOX_AUG:
-    ENABLED: true
-    H_FLIP: true
-    SCALES: (480, 576, 864, 1200)
-    SCALE_H_FLIP: true
-    MAX_SIZE: 2000
-    SCORE_HEUR: AVG
-    COORD_HEUR: AVG
+  #BBOX_AUG:
+  #  ENABLED: true
+  #  H_FLIP: true
+  #  SCALES: (480, 576, 864, 1200)
+  #  SCALE_H_FLIP: true
+  #  MAX_SIZE: 2000
+  #  SCORE_HEUR: AVG
+  #  COORD_HEUR: AVG

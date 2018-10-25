@@ -208,15 +208,11 @@ def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refin
     refine_loss2 = torch.sum(torch.sum(-label2 * torch.log(cls_refine2), dim=1), dim=0) / torch.clamp(torch.sum(label2 > 1e-12).float(), 1., 999999999.)
 
     proposals3 = _get_highest_score_proposals(rois_npy, cls_refine2[:, 1:].detach().cpu().numpy(), img_label)
-    label3 = _sample_rois(rois_npy, proposals3, reg_num)
+    label3, _, bbox_targets, bbox_inside_weights, bbox_outside_weights = _sample_rois(rois_npy, proposals3, reg_num, True, cls_refine2.detach().cpu().numpy())
     label3 = Variable(torch.from_numpy(label3)).cuda().float() # r * 21
     cls_refine3 = torch.clamp(cls_refine3, 1e-6, 1-1e-6)
     refine_loss3 = torch.sum(torch.sum(-label3 * torch.log(cls_refine3), dim=1), dim=0) / torch.clamp(torch.sum(label3 > 1e-12).float(), 1., 999999999.)
 
-
-    probs_mix = ((cls_refine1 + cls_refine2 + cls_refine3)/3).detach().cpu().numpy()
-    proposals_mix = _get_highest_score_proposals(rois_npy, probs_mix, img_label)
-    _, _, bbox_targets, bbox_inside_weights, bbox_outside_weights = _sample_rois(rois_npy, proposals_mix, reg_num, with_bbox=True, probs=probs_mix)
 
     bbox_targets = Variable(torch.from_numpy(bbox_targets)).cuda().float()
     bbox_inside_weights = Variable(torch.from_numpy(bbox_inside_weights)).cuda().float()
