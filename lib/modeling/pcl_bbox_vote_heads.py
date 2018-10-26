@@ -14,12 +14,19 @@ from iou_cal import assign_iou, assign_label
 from iou_cal import bbox_overlaps
 import utils.net as net_utils
 import utils.boxes as box_utils
-from sklearn.cluster import KMeans
+#from sklearn.cluster import KMeans
+from kmeans import KMeans
 
 def _get_top_ranking_proposals(probs):
-    kmeans = KMeans(n_clusters=3, random_state=2).fit(probs)
-    high_score_label = np.argmax(kmeans.cluster_centers_)
-    index = np.where(kmeans.labels_ == high_score_label)[0]
+    if probs.shape[0] < 3:
+        index = np.array([np.argmax(probs)])
+        return 
+    #kmeans = KMeans(n_clusters=3, random_state=2).fit(probs)
+    #high_score_label = np.argmax(kmeans.cluster_centers_)
+    #index = np.where(kmeans.labels_ == high_score_label)[0]
+    centers, labels = KMeans(probs.astype(np.float))
+    high_score_label = np.argmax(centers)
+    index = np.where(labels == high_score_label)[0] 
 
     if len(index) == 0:
         index = np.array([np.argmax(probs)])
@@ -40,7 +47,7 @@ def _get_graph_centers(boxes, cls_prob, im_labels):
         if im_labels_tmp[i] == 1:
             cls_prob_tmp = cls_prob[:, i].copy()
             idxs = np.where(cls_prob_tmp >= 0)[0]
-            idxs_tmp = _get_top_ranking_proposals(cls_prob_tmp[idxs].reshape(-1, 1))
+            idxs_tmp = _get_top_ranking_proposals(cls_prob_tmp[idxs].reshape(-1,))
             idxs = idxs[idxs_tmp]
             boxes_tmp = boxes[idxs, :].copy()
             cls_prob_tmp = cls_prob_tmp[idxs]
@@ -74,8 +81,8 @@ def _get_graph_centers(boxes, cls_prob, im_labels):
             gt_scores = np.vstack((gt_scores, gt_scores_tmp[keep_idxs_new].reshape(-1, 1)))
             gt_classes = np.vstack((gt_classes, (i+1)*np.ones((len(keep_idxs_new), 1), dtype=np.int32)))
 
-            #cls_prob = np.delete(cls_prob.copy(), idxs[keep_idxs][keep_idxs_new], axis=0)
-            #boxes = np.delete(boxes.copy(), idxs[keep_idxs][keep_idxs_new], axis=0)
+            cls_prob = np.delete(cls_prob.copy(), idxs[keep_idxs][keep_idxs_new], axis=0)
+            boxes = np.delete(boxes.copy(), idxs[keep_idxs][keep_idxs_new], axis=0)
 
     proposals = {'gt_boxes': gt_boxes, 'gt_classes': gt_classes, 'gt_scores': gt_scores}
     return proposals
