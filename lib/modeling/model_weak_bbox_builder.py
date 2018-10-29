@@ -12,10 +12,7 @@ from model.roi_pooling.functions.roi_pool import RoIPoolFunction
 from model.roi_crop.functions.roi_crop import RoICropFunction
 from modeling.roi_xfrom.roi_align.functions.roi_align import RoIAlignFunction
 #import modeling.oicr_heads as oicr_heads
-#import modeling.oicr_bbox_heads as oicr_heads
-#import modeling.pcl_bbox_vote_heads as pcl_heads
-import modeling.oicr_heads_b as oicr_heads
-
+import modeling.oicr_bbox_heads_b as oicr_heads
 import utils.blob as blob_utils
 import utils.net as net_utils
 #import utils.resnet_weights_helper as resnet_utils
@@ -86,8 +83,7 @@ class Generalized_RCNN(nn.Module):
         #self.Box_Outs = wsddn_heads.wsddn_outputs(
         #        self.Box_Head.dim_out)
         self.Box_Outs = oicr_heads.oicr_outputs(self.Box_Head.dim_out)
-        #self.Box_Outs = pcl_heads.pcl_outputs(self.Box_Head.dim_out)
-
+        
 
         self._init_modules()
 
@@ -144,7 +140,7 @@ class Generalized_RCNN(nn.Module):
             return_dict['losses']['refine_loss1'] = refine_loss1
             return_dict['losses']['refine_loss2'] = refine_loss2
             return_dict['losses']['refine_loss3'] = refine_loss3
-            #return_dict['losses']['bbox_loss'] = bbox_loss
+            return_dict['losses']['bbox_loss'] = bbox_loss
             return_dict['metrics']['cls_loss'] = cls_loss
 
             # pytorch0.4 bug on gathering scalar(0-dim) tensors
@@ -159,7 +155,7 @@ class Generalized_RCNN(nn.Module):
 
             return_dict['rois'] = rois
             return_dict['cls_score'] = bbox_mul
-            #return_dict['bbox_pred'] = bbox_pred
+            return_dict['bbox_pred'] = bbox_pred
 
         return return_dict
 

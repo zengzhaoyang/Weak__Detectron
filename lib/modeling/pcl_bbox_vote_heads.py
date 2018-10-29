@@ -284,8 +284,8 @@ def pcl_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refine
     cls_refine3 = torch.clamp(cls_refine3, 1e-6, 1-1e-6)
 
     refine_loss1 = pcl1(rois_npy, bbox_mul, img_label, cls_refine1)
-    refine_loss2 = pcl1(rois_npy, cls_refine1[:, 1:], img_label, cls_refine2)
-    refine_loss3 = pcl1(rois_npy, cls_refine2[:, 1:], img_label, cls_refine3)
+    refine_loss2 = pcl2(rois_npy, cls_refine1[:, 1:], img_label, cls_refine2)
+    refine_loss3 = pcl3(rois_npy, cls_refine2[:, 1:], img_label, cls_refine3)
 
     return cls_loss, refine_loss1, refine_loss2, refine_loss3, 0.
 

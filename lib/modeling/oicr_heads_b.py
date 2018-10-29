@@ -171,7 +171,7 @@ class oicr_outputs(nn.Module):
         if self.training:
             return bbox_mul, cls_refine1, cls_refine2, cls_refine3, 0.
         else:
-            return cls_refine1 + cls_refine2 + cls_refine3
+            return cls_refine1 + cls_refine2 + cls_refine3, 0.
 
 
 

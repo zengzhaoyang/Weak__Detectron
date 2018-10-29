@@ -134,7 +134,7 @@ def im_detect_bbox(model, im, target_scale, target_max_size, boxes=None, return_
             box_deltas = box_deltas.reshape((-1, 4))
         else:
             box_deltas = box_deltas[:, 4:].reshape((-1, 4))
-        box_deltas = box_deltas * cfg.TRAIN.BBOX_NORMALIZE_STDS + cfg.TRAIN.BBOX_NORMALIZE_MEANS
+        #box_deltas = box_deltas * cfg.TRAIN.BBOX_NORMALIZE_STDS + cfg.TRAIN.BBOX_NORMALIZE_MEANS
 
         if cfg.MODEL.CLS_AGNOSTIC_BBOX_REG:
             box_deltas = box_deltas.reshape(ori_shape)
@@ -145,7 +145,7 @@ def im_detect_bbox(model, im, target_scale, target_max_size, boxes=None, return_
         if cfg.MODEL.CLS_AGNOSTIC_BBOX_REG:
             pass
         else:
-            pred_boxes = np.tile(boxes, (1, scores.shape[1]))
+            pred_boxes = np.tile(pred_boxes, (1, scores.shape[1]))
 
 
     if cfg.DEDUP_BOXES > 0 and not cfg.MODEL.FASTER_RCNN:

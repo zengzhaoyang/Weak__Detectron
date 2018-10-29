@@ -151,10 +151,11 @@ class Generalized_RCNN(nn.Module):
 
         else:
             # Testing
-            bbox_mul = self.Box_Outs(box_feat)
+            bbox_mul, bbox_pred = self.Box_Outs(box_feat)
 
             return_dict['rois'] = rois
             return_dict['cls_score'] = bbox_mul
+            return_dict['bbox_pred'] = bbox_pred
 
         return return_dict
 
