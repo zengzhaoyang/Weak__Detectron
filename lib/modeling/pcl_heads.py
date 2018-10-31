@@ -43,11 +43,7 @@ def _get_graph_centers(boxes, cls_prob, im_labels):
     for i in range(num_classes):
         if im_labels_tmp[i] == 1:
             cls_prob_tmp = cls_prob[:, i].copy()
-            if cls_prob_tmp.shape[0] == 0:
-                continue
             idxs = np.where(cls_prob_tmp >= 0)[0]
-            if len(idxs) == 0:
-                continue
             idxs_tmp = _get_top_ranking_proposals(cls_prob_tmp[idxs].reshape(-1,))
             idxs = idxs[idxs_tmp]
             boxes_tmp = boxes[idxs, :].copy()
@@ -327,16 +323,17 @@ def pcl_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refine
     cls_refine2 = torch.clamp(cls_refine2, 1e-6, 1-1e-6)
     cls_refine3 = torch.clamp(cls_refine3, 1e-6, 1-1e-6)
 
-    bboxs = []
+    #bboxs = []
 
     refine_loss1 = pcl1(rois_npy, bbox_mul, img_label, cls_refine1, False, [])
     refine_loss2 = pcl2(rois_npy, cls_refine1[:, 1:], img_label, cls_refine2, False, [])
-    refine_loss3 = pcl3(rois_npy, cls_refine2[:, 1:], img_label, cls_refine3, True, bboxs)
+    refine_loss3 = pcl3(rois_npy, cls_refine2[:, 1:], img_label, cls_refine3, False, [])
 
-    loss_bbox = 25 * net_utils.smooth_l1_loss(bbox_pred, bboxs[0], bboxs[1], bboxs[2])
+    #loss_bbox = 30. * net_utils.smooth_l1_loss(bbox_pred, bbox_targets, bbox_inside_weights, bbox_outside_weights)
+    #loss_bbox = 0.1 * net_utils.smooth_l1_loss(bbox_pred, bboxs[0], bboxs[1], bboxs[2])
 
 
-    return cls_loss, refine_loss1, refine_loss2, refine_loss3, loss_bbox
+    return cls_loss, refine_loss1, refine_loss2, refine_loss3, 0.
 
 
 # ---------------------------------------------------------------------------- #

@@ -12,7 +12,7 @@ from model.roi_pooling.functions.roi_pool import RoIPoolFunction
 from model.roi_crop.functions.roi_crop import RoICropFunction
 from modeling.roi_xfrom.roi_align.functions.roi_align import RoIAlignFunction
 #import modeling.oicr_heads as oicr_heads
-import modeling.pcl_bbox_vote_heads as pcl_heads
+import modeling.pcl_heads as pcl_heads
 import utils.blob as blob_utils
 import utils.net as net_utils
 #import utils.resnet_weights_helper as resnet_utils
@@ -151,10 +151,11 @@ class Generalized_RCNN(nn.Module):
 
         else:
             # Testing
-            bbox_mul = self.Box_Outs(box_feat)
+            bbox_mul, bbox_pred = self.Box_Outs(box_feat)
 
             return_dict['rois'] = rois
             return_dict['cls_score'] = bbox_mul
+            return_dict['bbox_pred'] = bbox_pred
 
         return return_dict
 
