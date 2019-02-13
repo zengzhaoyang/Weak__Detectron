@@ -149,14 +149,26 @@ class VGG_roi_fc_head(nn.Module):
         self.dropout2.train(mode)
 
     def forward(self, x, rpn_ret):
-        x = self.roi_xform(
-            x, rpn_ret,
+        #x = self.roi_xform(
+        #    x, rpn_ret,
+        #    blob_rois='rois',
+        #    method=cfg.FAST_RCNN.ROI_XFORM_METHOD,
+        #    resolution=self.roi_size,
+        #    spatial_scale=self.spatial_scale,
+        #    sampling_ratio=cfg.FAST_RCNN.ROI_XFORM_SAMPLING_RATIO
+        #)
+
+        xs = [self.roi_xform(
+            x[i:i+1, :, :, :], rpn_ret[i],
             blob_rois='rois',
             method=cfg.FAST_RCNN.ROI_XFORM_METHOD,
             resolution=self.roi_size,
             spatial_scale=self.spatial_scale,
             sampling_ratio=cfg.FAST_RCNN.ROI_XFORM_SAMPLING_RATIO
-        )
+        ) for i in range(x.shape[0])]
+
+        x = torch.stack(xs, dim=0)
+        x = torch.mean(x, dim=0)
 
         batch_size = x.size(0)
         x = F.relu(self.fc1(x.view(batch_size, -1)), inplace=True)

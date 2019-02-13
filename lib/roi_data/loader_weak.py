@@ -234,10 +234,10 @@ def collate_minibatch(list_of_blobs):
         #minibatch['rois'] = minibatch['rois'].squeeze()
         #minibatch['roidb'] = list_of_roidb[i:(i + cfg.TRAIN.IMS_PER_BATCH)]
         for key in minibatch:
-            if key != 'data':
-                Batch[key].append(minibatch[key].squeeze())
-            else:
-                Batch[key].append(minibatch[key])
+            #if key != 'data':
+            Batch[key].append(minibatch[key].squeeze())
+            #else:
+            #    Batch[key].append(minibatch[key])
 
     #for key in Batch:
     #    print(key, Batch[key][0].shape)
@@ -246,12 +246,12 @@ def collate_minibatch(list_of_blobs):
 
 
 def pad_image_data(list_of_blobs):
-    max_shape = blob_utils.get_max_shape([blobs['data'].shape[1:] for blobs in list_of_blobs])
+    max_shape = blob_utils.get_max_shape([blobs['data'].shape[2:] for blobs in list_of_blobs])
     output_list = []
     for blobs in list_of_blobs:
-        data_padded = np.zeros((3, max_shape[0], max_shape[1]), dtype=np.float32)
-        _, h, w = blobs['data'].shape
-        data_padded[:, :h, :w] = blobs['data']
+        data_padded = np.zeros((blobs['data'].shape[0], 3, max_shape[0], max_shape[1]), dtype=np.float32)
+        _, _, h, w = blobs['data'].shape
+        data_padded[:, :, :h, :w] = blobs['data']
         blobs['data'] = data_padded
         output_list.append(blobs)
     return output_list

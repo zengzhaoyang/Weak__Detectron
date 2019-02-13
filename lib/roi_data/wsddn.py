@@ -57,8 +57,11 @@ def get_wsddn_blob_names(is_training=True):
 def add_wsddn_blobs(blobs, im_scales, roidb):
     """Add blobs needed for training Fast R-CNN style models."""
     # Sample training RoIs from each image and append them to the blob lists
+
     for im_i, entry in enumerate(roidb):
-        frcn_blobs = _sample_rois(entry, im_scales[im_i], im_i)
+
+        frcn_blobs = _sample_rois(entry, im_scales, im_i)
+
         for k, v in frcn_blobs.items():
             blobs[k].append(v)
     # Concat the training blob lists into tensors
@@ -84,23 +87,37 @@ def _sample_rois(roidb, im_scale, batch_idx):
 
 
     ## Scale rois and format as (batch_idx, x1, y1, x2, y2)
-    sampled_rois = sampled_boxes * im_scale
-    repeated_batch_idx = batch_idx * blob_utils.ones((sampled_rois.shape[0], 1))
-    sampled_rois = np.hstack((repeated_batch_idx, sampled_rois))
+    if isinstance(im_scale, int):
+        sampled_rois = sampled_boxes * im_scale
+        repeated_batch_idx = batch_idx * blob_utils.ones((sampled_rois.shape[0], 1))
+        sampled_rois = np.hstack((repeated_batch_idx, sampled_rois))
 
-    if cfg.DEDUP_BOXES > 0 and not cfg.MODEL.FASTER_RCNN:
-        v = np.array([1, 1e3, 1e6, 1e9, 1e12])
-        hashes = np.round(sampled_rois * cfg.DEDUP_BOXES).dot(v)
-        _, index, inv_index = np.unique(
-            hashes, return_index=True, return_inverse=True
-        )
-        sampled_rois = sampled_rois[index, :]
+        if cfg.DEDUP_BOXES > 0 and not cfg.MODEL.FASTER_RCNN:
+            v = np.array([1, 1e3, 1e6, 1e9, 1e12])
+            hashes = np.round(sampled_rois * cfg.DEDUP_BOXES).dot(v)
+            _, index, inv_index = np.unique(
+                hashes, return_index=True, return_inverse=True
+            )
+            sampled_rois = sampled_rois[index, :]
+    else:
+        sampled_rois = [sampled_boxes * sc for sc in im_scale]
+        repeated_batch_idx = batch_idx * blob_utils.ones((sampled_rois[0].shape[0], 1))
+        sampled_rois = [np.hstack((repeated_batch_idx, sr)) for sr in sampled_rois]
 
+        if cfg.DEDUP_BOXES > 0 and not cfg.MODEL.FASTER_RCNN:
+            v = np.array([1, 1e3, 1e6, 1e9, 1e12])
+            hashes = np.round(sampled_rois[-1] * cfg.DEDUP_BOXES).dot(v)
+            _, index, inv_index = np.unique(
+                hashes, return_index=True, return_inverse=True
+            )
+            sampled_rois = [sr[index, :] for sr in sampled_rois]
+            sampled_rois = np.stack(sampled_rois, axis=0)
 
     # Base Fast R-CNN blobs
     blob_dict = dict(
         labels_int32=sampled_labels.astype(np.int32, copy=False),
-        rois=sampled_rois)
+        rois=sampled_rois
+    )
 
     return blob_dict
 

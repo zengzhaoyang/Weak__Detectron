@@ -9,7 +9,7 @@ from core.config import cfg
 import nn as mynn
 import utils.net as net_utils
 
-from iou_cal import assign_iou, assign_label
+#from iou_cal import assign_iou, assign_label
 #from featuredist_cal import assign_featuredist
 from iou_cal import bbox_overlaps
 import utils.net as net_utils
@@ -70,6 +70,7 @@ class oicr_outputs(nn.Module):
     def forward(self, x):
         if x.dim() == 4:
             x = x.squeeze(3).squeeze(2)
+
         cls_score0 = self.cls_score0(x)
         cls_score0 = F.softmax(cls_score0, dim=1)
         cls_score1 = self.cls_score1(x)
@@ -97,6 +98,8 @@ class oicr_outputs(nn.Module):
 
 
 def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refine3, bbox_pred):
+
+    newrois = rois[2]
 
     y = bbox_mul.sum(dim=0)
 
@@ -166,7 +169,7 @@ def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refin
         else:
             return newlabels
 
-    rois_npy = rois.cpu().numpy()[:, 1:]
+    rois_npy = newrois.cpu().numpy()[:, 1:]
     proposals1 = _get_highest_score_proposals(rois_npy, bbox_mul.detach().cpu().numpy(), img_label)
     label1 = _sample_rois(rois_npy, proposals1)
     label1 = Variable(torch.from_numpy(label1)).cuda().float() # r * 21
@@ -186,7 +189,6 @@ def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refin
     label3 = Variable(torch.from_numpy(label3)).cuda().float() # r * 21
     cls_refine3 = torch.clamp(cls_refine3, 1e-6, 1-1e-6)
 
-    print(torch.sum(-label3 * torch.log(cls_refine3), dim=0))
     refine_loss3 = torch.sum(torch.sum(-label3 * torch.log(cls_refine3), dim=1), dim=0) / torch.clamp(torch.sum(label3 > 1e-12).float(), 1., 999999999.)
 
 
