@@ -21,7 +21,7 @@ FAST_RCNN:
   #ROI_BOX_HEAD: ResNet.ResNet_roi_conv5_head
   #ROI_BOX_HEAD: fast_rcnn_heads.roi_2mlp_head
   #ROI_BOX_HEAD: oicr_heads.roi_2mlp_head
-  ROI_BOX_HEAD: VGG16.VGG_roi_fc_head
+  ROI_BOX_HEAD: VGG16.VGG_roi_fc_cat_head
   ROI_XFORM_METHOD: RoIPoolF
 TRAIN:
   SCALES: (480, 576, 688, 864, 1200)

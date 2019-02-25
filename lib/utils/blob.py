@@ -45,8 +45,10 @@ def get_image_blob(im, target_scale, target_max_size):
         im_scale (float): image scale (target size) / (original size)
         im_info (ndarray)
     """
+    if not isinstance(target_scale, list):
+        target_scale = [target_scale]
     processed_im, im_scale = prep_im_for_blob(
-        im, cfg.PIXEL_MEANS, [target_scale], target_max_size
+        im, cfg.PIXEL_MEANS, target_scale, target_max_size
     )
     blob = im_list_to_blob(processed_im)
     # NOTE: this height and width may be larger than actual scaled input image

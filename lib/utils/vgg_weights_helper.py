@@ -63,7 +63,9 @@ def load_pretrained_imagenet_weights(model):
                 if ext == '.pkl':
                     model_state_dict[k].copy_(torch.Tensor(pretrianed_state_dict[v]))
                 else:
-                    model_state_dict[k].copy_(pretrianed_state_dict[pretrianed_key])
+                    if model_state_dict[k].shape == pretrianed_state_dict[pretrianed_key].shape:
+                        model_state_dict[k].copy_(pretrianed_state_dict[pretrianed_key])
+                        print('copy', k, pretrianed_key)
 
 
 def convert_state_dict(src_dict):

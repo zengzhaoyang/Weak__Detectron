@@ -99,12 +99,17 @@ def im_detect_bbox(model, im, target_scale, target_max_size, boxes=None, return_
     inputs, im_scale = _get_blobs(im, boxes, target_scale, target_max_size)
 
     if cfg.DEDUP_BOXES > 0 and not cfg.MODEL.FASTER_RCNN:
+        tmproi = inputs['rois'][2]
+
         v = np.array([1, 1e3, 1e6, 1e9, 1e12])
-        hashes = np.round(inputs['rois'] * cfg.DEDUP_BOXES).dot(v)
+        #hashes = np.round(inputs['rois'] * cfg.DEDUP_BOXES).dot(v)
+        hashes = np.round(tmproi * cfg.DEDUP_BOXES).dot(v)
+
         _, index, inv_index = np.unique(
             hashes, return_index=True, return_inverse=True
         )
-        inputs['rois'] = inputs['rois'][index, :]
+        #inputs['rois'] = inputs['rois'][index, :]
+        inputs['rois'] = inputs['rois'][:, index, :]
         boxes = boxes[index, :]
 
     if cfg.PYTORCH_VERSION_LESS_THAN_040:
@@ -371,8 +376,12 @@ def _get_rois_blob(im_rois, im_scale):
         blob (ndarray): R x 5 matrix of RoIs in the image pyramid with columns
             [level, x1, y1, x2, y2]
     """
-    rois, levels = _project_im_rois(im_rois, im_scale)
-    rois_blob = np.hstack((levels, rois))
+    rs = []
+    for s in im_scale:
+        rois, levels = _project_im_rois(im_rois, s)
+        rois_blob = np.hstack((levels, rois))
+        rs.append(rois_blob)
+    rois_blob = np.stack(rs)
     return rois_blob.astype(np.float32, copy=False)
 
 
@@ -415,6 +424,9 @@ def _add_multilevel_rois_for_test(blobs, name):
 
 def _get_blobs(im, rois, target_scale, target_max_size):
     """Convert an image and RoIs within that image into network inputs."""
+
+    target_scale = [480, 576, 688, 864, 1200]
+
     blobs = {}
     blobs['data'], im_scale, blobs['im_info'] = \
         blob_utils.get_image_blob(im, target_scale, target_max_size)

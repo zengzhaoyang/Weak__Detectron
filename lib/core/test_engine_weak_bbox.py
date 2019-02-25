@@ -37,7 +37,7 @@ from core.config import cfg
 from core.test_weak_bbox import im_detect_all
 from datasets import task_evaluation
 from datasets.json_dataset import JsonDataset
-from modeling import model_weak_pcl_builder as model_weak_builder
+from modeling import model_weak_bbox_builder as model_weak_builder
 import nn as mynn
 from utils.detectron_weight_helper import load_detectron_weight
 import utils.env as envu
