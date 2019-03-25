@@ -37,7 +37,7 @@ from core.config import cfg
 from core.test_weak_bbox import im_detect_all
 from datasets import task_evaluation
 from datasets.json_dataset import JsonDataset
-from modeling import model_weak_pcl_builder as model_weak_builder
+from modeling import model_weak_bbox_builder as model_weak_builder
 import nn as mynn
 from utils.detectron_weight_helper import load_detectron_weight
 import utils.env as envu
@@ -84,6 +84,7 @@ def get_inference_dataset(index, is_parent=True):
 
     return dataset_name, proposal_file
 
+
 def apply_nms(all_boxes, thresh):
     num_classes = len(all_boxes)
     num_images = len(all_boxes[0])
@@ -94,10 +95,34 @@ def apply_nms(all_boxes, thresh):
             dets = all_boxes[cls_ind][im_ind]
             if dets == []:
                 continue
-            keep = box_utils.nms(dets, thresh)
-            if len(keep) == 0:
-                continue
-            nms_boxes[cls_ind][im_ind] = dets[keep, :].copy()
+
+            if cfg.TEST.SOFT_NMS.ENABLED:
+                nms_dets_tmp, _ = box_utils.soft_nms(
+                    dets,
+                    sigma=cfg.TEST.SOFT_NMS.SIGMA,
+                    overlap_thresh=cfg.TEST.NMS,
+                    score_thresh=0.0001,
+                    method=cfg.TEST.SOFT_NMS.METHOD
+                )
+            else:
+
+
+                keep = box_utils.nms(dets, thresh)
+                if len(keep) == 0:
+                    continue
+
+                nms_dets_tmp = dets[keep, :]
+            if cfg.TEST.BBOX_VOTE.ENABLED:
+                nms_dets_tmp = box_utils.box_voting(
+                    nms_dets_tmp,
+                    dets,
+                    cfg.TEST.BBOX_VOTE.VOTE_TH,
+                    scoring_method=cfg.TEST.BBOX_VOTE.SCORING_METHOD
+                )
+
+            #nms_boxes[cls_ind][im_ind] = dets[keep, :].copy()
+            nms_boxes[cls_ind][im_ind] = nms_dets_tmp.copy()
+
     return nms_boxes
 
 def run_inference(
@@ -257,78 +282,168 @@ def test_net(
     max_per_set = 40 * num_images
     max_per_image = 100
 
-    for i, entry in enumerate(roidb):
+    print(dataset_name)
 
-        im = cv2.imread(entry['image'])
-        #cls_boxes_i, cls_segms_i, cls_keyps_i = im_detect_all(model, im, box_proposals, timers)
-        box_proposals = entry['boxes'][entry['gt_classes'] == 0]
-        scores, boxes = im_detect_all(model, im, box_proposals, timers)
+    if 'test' in dataset_name:
+        for i, entry in enumerate(roidb):
+            im = cv2.imread(entry['image'])
+            #cls_boxes_i, cls_segms_i, cls_keyps_i = im_detect_all(model, im, box_proposals, timers)
+            box_proposals = entry['boxes'][entry['gt_classes'] == 0]
+            scores, boxes = im_detect_all(model, im, box_proposals, timers)
 
-        for j in range(0, num_classes-1):
-            inds = np.where((scores[:, j] > thresh[j]))[0]
-            cls_scores = scores[inds, j]
-            cls_boxes = boxes[inds, j*4:(j+1)*4]
-            top_inds = np.argsort(-cls_scores)[:max_per_image]
-            cls_scores = cls_scores[top_inds]
-            cls_boxes = cls_boxes[top_inds, :]
-            for val in cls_scores:
-                heapq.heappush(top_scores[j], val)
-            if len(top_scores[j]) > max_per_set:
-                while len(top_scores[j]) > max_per_set:
-                    heapq.heappop(top_scores[j])
-                thresh[j] = top_scores[j][0]
+            for j in range(0, num_classes-1):
+                inds = np.where((scores[:, j] > thresh[j]))[0]
+                cls_scores = scores[inds, j]
+                cls_boxes = boxes[inds, j*4:(j+1)*4]
+                top_inds = np.argsort(-cls_scores)[:max_per_image]
+                cls_scores = cls_scores[top_inds]
+                cls_boxes = cls_boxes[top_inds, :]
+                for val in cls_scores:
+                    heapq.heappush(top_scores[j], val)
+                if len(top_scores[j]) > max_per_set:
+                    while len(top_scores[j]) > max_per_set:
+                        heapq.heappop(top_scores[j])
+                    thresh[j] = top_scores[j][0]
 
-            all_boxes[j+1][i] = np.hstack((cls_boxes, cls_scores[:, np.newaxis])).astype(np.float32, copy=False)
-    
-        #extend_results(i, all_boxes, cls_boxes_i)
+                all_boxes[j+1][i] = np.hstack((cls_boxes, cls_scores[:, np.newaxis])).astype(np.float32, copy=False)
+        
+            #extend_results(i, all_boxes, cls_boxes_i)
 
-        if i % 10 == 0:  # Reduce log file size
-            ave_total_time = np.sum([t.average_time for t in timers.values()])
-            eta_seconds = ave_total_time * (num_images - i - 1)
-            eta = str(datetime.timedelta(seconds=int(eta_seconds)))
-            det_time = (
-                timers['im_detect_bbox'].average_time +
-                timers['im_detect_mask'].average_time +
-                timers['im_detect_keypoints'].average_time
-            )
-            misc_time = (
-                timers['misc_bbox'].average_time +
-                timers['misc_mask'].average_time +
-                timers['misc_keypoints'].average_time
-            )
-            logger.info(
-                (
-                    'im_detect: range [{:d}, {:d}] of {:d}: '
-                    '{:d}/{:d} {:.3f}s + {:.3f}s (eta: {})'
-                ).format(
-                    start_ind + 1, end_ind, total_num_images, start_ind + i + 1,
-                    start_ind + num_images, det_time, misc_time, eta
+            if i % 10 == 0:  # Reduce log file size
+                ave_total_time = np.sum([t.average_time for t in timers.values()])
+                eta_seconds = ave_total_time * (num_images - i - 1)
+                eta = str(datetime.timedelta(seconds=int(eta_seconds)))
+                det_time = (
+                    timers['im_detect_bbox'].average_time +
+                    timers['im_detect_mask'].average_time +
+                    timers['im_detect_keypoints'].average_time
                 )
-            )
-    
-    for j in range(num_classes-1):
-        for i in range(num_images):
-            inds = np.where(all_boxes[j+1][i][:, -1] > thresh[j])[0]
-            all_boxes[j+1][i] = all_boxes[j+1][i][inds, :]
+                misc_time = (
+                    timers['misc_bbox'].average_time +
+                    timers['misc_mask'].average_time +
+                    timers['misc_keypoints'].average_time
+                )
+                logger.info(
+                    (
+                        'im_detect: range [{:d}, {:d}] of {:d}: '
+                        '{:d}/{:d} {:.3f}s + {:.3f}s (eta: {})'
+                    ).format(
+                        start_ind + 1, end_ind, total_num_images, start_ind + i + 1,
+                        start_ind + num_images, det_time, misc_time, eta
+                    )
+                )
+        
+        for j in range(num_classes-1):
+            for i in range(num_images):
+                inds = np.where(all_boxes[j+1][i][:, -1] > thresh[j])[0]
+                all_boxes[j+1][i] = all_boxes[j+1][i][inds, :]
 
-    all_boxes = apply_nms(all_boxes, cfg.TEST.NMS)
+        all_boxes = apply_nms(all_boxes, cfg.TEST.NMS)
 
-    cfg_yaml = yaml.dump(cfg)
-    if ind_range is not None:
-        det_name = 'detection_range_%s_%s.pkl' % tuple(ind_range)
+        cfg_yaml = yaml.dump(cfg)
+        if ind_range is not None:
+            det_name = 'detection_range_%s_%s.pkl' % tuple(ind_range)
+        else:
+            det_name = 'detections.pkl'
+        det_file = os.path.join(output_dir, det_name)
+        save_object(
+            dict(
+                all_boxes=all_boxes,
+                all_segms=all_segms,
+                all_keyps=all_keyps,
+                cfg=cfg_yaml
+            ), det_file
+        )
+        logger.info('Wrote detections to: {}'.format(os.path.abspath(det_file)))
+        return all_boxes, all_segms, all_keyps
     else:
-        det_name = 'detections.pkl'
-    det_file = os.path.join(output_dir, det_name)
-    save_object(
-        dict(
-            all_boxes=all_boxes,
-            all_segms=all_segms,
-            all_keyps=all_keyps,
-            cfg=cfg_yaml
-        ), det_file
-    )
-    logger.info('Wrote detections to: {}'.format(os.path.abspath(det_file)))
-    return all_boxes, all_segms, all_keyps
+        for i, entry in enumerate(roidb):
+            im = cv2.imread(entry['image'])
+            #cls_boxes_i, cls_segms_i, cls_keyps_i = im_detect_all(model, im, box_proposals, timers)
+            box_proposals = entry['boxes'][entry['gt_classes'] == 0]
+            scores, boxes = im_detect_all(model, im, box_proposals, timers)
+
+            for j in range(0, num_classes-1):
+                index = np.argmax(scores[:, j])
+                cls_boxes = boxes[index, j*4:(j+1)*4].reshape(1, -1)
+                all_boxes[j+1][i] = np.hstack((cls_boxes, np.array([[scores[index, j]]]))).astype(np.float32, copy=False)
+            #extend_results(i, all_boxes, cls_boxes_i)
+
+            if i % 10 == 0:  # Reduce log file size
+                ave_total_time = np.sum([t.average_time for t in timers.values()])
+                eta_seconds = ave_total_time * (num_images - i - 1)
+                eta = str(datetime.timedelta(seconds=int(eta_seconds)))
+                det_time = (
+                    timers['im_detect_bbox'].average_time +
+                    timers['im_detect_mask'].average_time +
+                    timers['im_detect_keypoints'].average_time
+                )
+                misc_time = (
+                    timers['misc_bbox'].average_time +
+                    timers['misc_mask'].average_time +
+                    timers['misc_keypoints'].average_time
+                )
+                logger.info(
+                    (
+                        'im_detect: range [{:d}, {:d}] of {:d}: '
+                        '{:d}/{:d} {:.3f}s + {:.3f}s (eta: {})'
+                    ).format(
+                        start_ind + 1, end_ind, total_num_images, start_ind + i + 1,
+                        start_ind + num_images, det_time, misc_time, eta
+                    )
+                )
+
+        #gt_tmp = {
+        #    'aeroplane': np.empty((0, 4), dtype=np.float32),
+        #    'bicycle': np.empty((0, 4), dtype=np.float32),
+        #    'bird': np.empty((0, 4), dtype=np.float32),
+        #    'boat': np.empty((0, 4), dtype=np.float32),
+        #    'bottle': np.empty((0, 4), dtype=np.float32),
+        #    'bus': np.empty((0, 4), dtype=np.float32),
+        #    'car': np.empty((0, 4), dtype=np.float32),
+        #    'cat': np.empty((0, 4), dtype=np.float32),
+        #    'chair': np.empty((0, 4), dtype=np.float32),
+        #    'cow': np.empty((0, 4), dtype=np.float32),
+        #    'diningtable': np.empty((0, 4), dtype=np.float32),
+        #    'dog': np.empty((0, 4), dtype=np.float32),
+        #    'horse': np.empty((0, 4), dtype=np.float32),
+        #    'motorbike': np.empty((0, 4), dtype=np.float32),
+        #    'person': np.empty((0, 4), dtype=np.float32),
+        #    'pottedplant': np.empty((0, 4), dtype=np.float32),
+        #    'sheep': np.empty((0, 4), dtype=np.float32),
+        #    'sofa': np.empty((0, 4), dtype=np.float32),
+        #    'train': np.empty((0, 4), dtype=np.float32),
+        #    'tvmonitor': np.empty((0, 4), dtype=np.float32),
+        #}
+        #tmp_idx = np.where(roidb[i]['labels'][0][:20])[0]
+        #
+        #for j in xrange(len(tmp_idx)):
+        #    idx_real = np.argmax(scores[:, tmp_idx[j]])
+        #    gt_tmp[imdb.classes[tmp_idx[j]]] = np.array([boxes[idx_real, tmp_idx[j]*4+1],
+        #                                                 boxes[idx_real, tmp_idx[j]*4],
+        #                                                 boxes[idx_real, tmp_idx[j]*4+3],
+        #                                                 boxes[idx_real, tmp_idx[j]*4+2]], dtype=np.float32)
+        #    gt_tmp[imdb.classes[tmp_idx[j]]] += 1
+
+        #gt[i] = {'gt': gt_tmp}
+
+        cfg_yaml = yaml.dump(cfg)
+        if ind_range is not None:
+            det_name = 'detection_range_%s_%s.pkl' % tuple(ind_range)
+        else:
+            det_name = 'detections.pkl'
+        det_file = os.path.join(output_dir, det_name)
+        save_object(
+            dict(
+                all_boxes=all_boxes,
+                all_segms=all_segms,
+                all_keyps=all_keyps,
+                cfg=cfg_yaml
+            ), det_file
+        )
+        logger.info('Wrote detections to: {}'.format(os.path.abspath(det_file)))
+        return all_boxes, all_segms, all_keyps
+
 
 
 def initialize_model_from_cfg(args, gpu_id=0):

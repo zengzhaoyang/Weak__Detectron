@@ -147,6 +147,9 @@ def im_detect_bbox(model, im, target_scale, target_max_size, boxes=None, return_
         else:
             pred_boxes = np.tile(pred_boxes, (1, scores.shape[1]))
 
+    else:
+        pred_boxes = np.tile(boxes, (1, scores.shape[1]))
+
 
     if cfg.DEDUP_BOXES > 0 and not cfg.MODEL.FASTER_RCNN:
         # Map scores and predictions back to the original set of boxes

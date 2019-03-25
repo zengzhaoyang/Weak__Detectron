@@ -36,7 +36,8 @@ class RoiDataLoader(data.Dataset):
 
         # Squeeze batch dim
         for key in blobs:
-            blobs[key] = blobs[key].squeeze()
+            if key != 'im_info':
+                blobs[key] = blobs[key].squeeze()
 
         return blobs
 
@@ -234,7 +235,7 @@ def collate_minibatch(list_of_blobs):
         #minibatch['rois'] = minibatch['rois'].squeeze()
         #minibatch['roidb'] = list_of_roidb[i:(i + cfg.TRAIN.IMS_PER_BATCH)]
         for key in minibatch:
-            if key != 'data':
+            if key != 'data' and key != 'ori_data' and key != 'im_info':
                 Batch[key].append(minibatch[key].squeeze())
             else:
                 Batch[key].append(minibatch[key])

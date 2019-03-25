@@ -217,6 +217,14 @@ DATASETS = {
         DEVKIT_DIR:
             _DATA_DIR + '/VOC2007/VOCdevkit'
     },
+    'voc_2007_trainval': {
+        IM_DIR:
+            _DATA_DIR + '/VOC2007/JPEGImages',
+        ANN_FN:
+            _DATA_DIR + '/VOC2007/annotations/pascal_trainval2007.json',
+        DEVKIT_DIR:
+            _DATA_DIR + '/VOC2007/VOCdevkit'
+    },
     'voc_2012_train': {
         IM_DIR:
             _DATA_DIR + '/VOC2012/JPEGImages',
@@ -230,6 +238,22 @@ DATASETS = {
             _DATA_DIR + '/VOC2012/JPEGImages',
         ANN_FN:
             _DATA_DIR + '/VOC2012/annotations/pascal_val2012.json',
+        DEVKIT_DIR:
+            _DATA_DIR + '/VOC2012/VOCdevkit'
+    },
+    'voc_2012_trainval': {
+        IM_DIR:
+            _DATA_DIR + '/VOC2012/JPEGImages',
+        ANN_FN:
+            _DATA_DIR + '/VOC2012/annotations/pascal_trainval2012.json',
+        DEVKIT_DIR:
+            _DATA_DIR + '/VOC2012/VOCdevkit'
+    },
+    'voc_2012_test': {
+        IM_DIR:
+            _DATA_DIR + '/VOC2012/JPEGImages',
+        ANN_FN:
+            _DATA_DIR + '/VOC2012/annotations/pascal_test2012.json',
         DEVKIT_DIR:
             _DATA_DIR + '/VOC2012/VOCdevkit'
     },

@@ -124,6 +124,8 @@ class oicr_outputs(nn.Module):
         init.constant_(self.cls_score0.bias, 0)
         init.normal_(self.cls_score1.weight, std=0.01)
         init.constant_(self.cls_score1.bias, 0)
+        init.normal_(self.bbox_pred.weight, std=0.001)
+        init.constant_(self.bbox_pred.bias, 0)
         init.normal_(self.cls_refine1.weight, std=0.01)
         init.constant_(self.cls_refine1.bias, 0)
         init.normal_(self.cls_refine2.weight, std=0.01)
@@ -138,6 +140,8 @@ class oicr_outputs(nn.Module):
             'cls_score0.bias': 'cls_score0_b',
             'cls_score1.weight': 'cls_score1_w',
             'cls_score1.bias': 'cls_score1_b',
+            'bbox_pred.weight': 'bbox_pred_w',
+            'bbox_pred.bias': 'bbox_pred_b',
             'cls_refine1.weight': 'cls_refine1_w',
             'cls_refine1.bias': 'cls_refine1_b',
             'cls_refine2.weight': 'cls_refine2_w',

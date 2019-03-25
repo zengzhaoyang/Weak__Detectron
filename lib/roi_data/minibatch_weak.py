@@ -24,8 +24,10 @@ def get_minibatch(roidb, preloads=None):
     blobs = {k: [] for k in get_minibatch_blob_names()}
 
     # Get the input image blob
-    im_blob, im_scales = _get_image_blob(roidb, preloads)
+    im_blob, im_scales, ori_ims = _get_image_blob(roidb, preloads)
     blobs['data'] = im_blob
+    blobs['ori_data'] = ori_ims
+    blobs['im_info'] = im_scales
     valid = roi_data.wsddn.add_wsddn_blobs(blobs, im_scales, roidb)
     return blobs, valid
 
@@ -39,6 +41,7 @@ def _get_image_blob(roidb, preloads=None):
     scale_inds = np.random.randint(
         0, high=len(cfg.TRAIN.SCALES), size=num_images)
     processed_ims = []
+    ori_ims = []
     im_scales = []
     for i in range(num_images):
         if preloads is None:
@@ -47,6 +50,7 @@ def _get_image_blob(roidb, preloads=None):
             im = preloads[roidb[i]['image'].split('/')[-1].split('.')[0]].copy()
         assert im is not None, \
             'Failed to read image \'{}\''.format(roidb[i]['image'])
+
         # If NOT using opencv to read in images, uncomment following lines
         # if len(im.shape) == 2:
         #     im = im[:, :, np.newaxis]
@@ -56,6 +60,8 @@ def _get_image_blob(roidb, preloads=None):
         # im = im[:, :, ::-1]
         if roidb[i]['flipped']:
             im = im[:, ::-1, :]
+
+        ori_ims.append(im)
         target_size = cfg.TRAIN.SCALES[scale_inds[i]]
         im, im_scale = blob_utils.prep_im_for_blob(
             im, cfg.PIXEL_MEANS, [target_size], cfg.TRAIN.MAX_SIZE)
@@ -65,4 +71,4 @@ def _get_image_blob(roidb, preloads=None):
     # Create a blob to hold the input images [n, c, h, w]
     blob = blob_utils.im_list_to_blob(processed_ims)
 
-    return blob, im_scales
+    return blob, im_scales, ori_ims

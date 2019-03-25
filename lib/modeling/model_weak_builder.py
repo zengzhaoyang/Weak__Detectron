@@ -85,8 +85,8 @@ class Generalized_RCNN(nn.Module):
             self.Conv_Body.dim_out, self.roi_feature_transform, self.Conv_Body.spatial_scale)
         #self.Box_Outs = wsddn_heads.wsddn_outputs(
         #        self.Box_Head.dim_out)
-        #self.Box_Outs = oicr_heads.oicr_outputs(self.Box_Head.dim_out)
-        self.Box_Outs = pcl_heads.pcl_outputs(self.Box_Head.dim_out)
+        self.Box_Outs = oicr_heads.oicr_outputs(self.Box_Head.dim_out)
+        #self.Box_Outs = pcl_heads.pcl_outputs(self.Box_Head.dim_out)
 
 
         self._init_modules()

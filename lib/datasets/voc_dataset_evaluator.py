@@ -30,6 +30,7 @@ from core.config import cfg
 from datasets.dataset_catalog import DATASETS
 from datasets.dataset_catalog import DEVKIT_DIR
 from datasets.voc_eval import voc_eval
+from datasets.dis_eval import dis_eval
 from utils.io import save_object
 
 logger = logging.getLogger(__name__)
@@ -109,38 +110,72 @@ def _do_python_eval(json_dataset, salt, output_dir='output'):
     image_set_path = info['image_set_path']
     devkit_path = info['devkit_path']
     cachedir = os.path.join(devkit_path, 'annotations_cache')
-    aps = []
-    # The PASCAL VOC metric changed in 2010
-    use_07_metric = True if int(year) < 2010 else False
-    logger.info('VOC07 metric? ' + ('Yes' if use_07_metric else 'No'))
-    if not os.path.isdir(output_dir):
-        os.mkdir(output_dir)
-    for _, cls in enumerate(json_dataset.classes):
-        if cls == '__background__':
-            continue
-        filename = _get_voc_results_file_template(
-            json_dataset, salt).format(cls)
-        rec, prec, ap = voc_eval(
-            filename, anno_path, image_set_path, cls, cachedir, ovthresh=0.5,
-            use_07_metric=use_07_metric)
-        aps += [ap]
-        logger.info('AP for {} = {:.4f}'.format(cls, ap))
-        res_file = os.path.join(output_dir, cls + '_pr.pkl')
-        save_object({'rec': rec, 'prec': prec, 'ap': ap}, res_file)
-    logger.info('Mean AP = {:.4f}'.format(np.mean(aps)))
-    logger.info('~~~~~~~~')
-    logger.info('Results:')
-    for ap in aps:
-        logger.info('{:.3f}'.format(ap))
-    logger.info('{:.3f}'.format(np.mean(aps)))
-    logger.info('~~~~~~~~')
-    logger.info('')
-    logger.info('----------------------------------------------------------')
-    logger.info('Results computed with the **unofficial** Python eval code.')
-    logger.info('Results should be very close to the official MATLAB code.')
-    logger.info('Use `./tools/reval.py --matlab ...` for your paper.')
-    logger.info('-- Thanks, The Management')
-    logger.info('----------------------------------------------------------')
+
+    if 'test.txt' in image_set_path:
+
+        aps = []
+        # The PASCAL VOC metric changed in 2010
+        use_07_metric = True if int(year) < 2010 else False
+        logger.info('VOC07 metric? ' + ('Yes' if use_07_metric else 'No'))
+        if not os.path.isdir(output_dir):
+            os.mkdir(output_dir)
+        for _, cls in enumerate(json_dataset.classes):
+            if cls == '__background__':
+                continue
+            filename = _get_voc_results_file_template(
+                json_dataset, salt).format(cls)
+            rec, prec, ap = voc_eval(
+                filename, anno_path, image_set_path, cls, cachedir, ovthresh=0.5,
+                use_07_metric=use_07_metric)
+            aps += [ap]
+            logger.info('AP for {} = {:.4f}'.format(cls, ap))
+            res_file = os.path.join(output_dir, cls + '_pr.pkl')
+            save_object({'rec': rec, 'prec': prec, 'ap': ap}, res_file)
+        logger.info('Mean AP = {:.4f}'.format(np.mean(aps)))
+        logger.info('~~~~~~~~')
+        logger.info('Results:')
+        for ap in aps:
+            logger.info('{:.3f}'.format(ap))
+        logger.info('{:.3f}'.format(np.mean(aps)))
+        logger.info('~~~~~~~~')
+        logger.info('')
+        logger.info('----------------------------------------------------------')
+        logger.info('Results computed with the **unofficial** Python eval code.')
+        logger.info('Results should be very close to the official MATLAB code.')
+        logger.info('Use `./tools/reval.py --matlab ...` for your paper.')
+        logger.info('-- Thanks, The Management')
+        logger.info('----------------------------------------------------------')
+
+    else:
+        corlocs = []
+        # The PASCAL VOC metric changed in 2010
+        if not os.path.isdir(output_dir):
+            os.mkdir(output_dir)
+        for _, cls in enumerate(json_dataset.classes):
+            if cls == '__background__':
+                continue
+            filename = _get_voc_results_file_template(
+                json_dataset, salt).format(cls)
+            corloc = dis_eval(
+                filename, anno_path, image_set_path, cls, cachedir, ovthresh=0.5)
+            corlocs += [corloc]
+            logger.info('CORLOC for {} = {:.4f}'.format(cls, corloc))
+            res_file = os.path.join(output_dir, cls + '_loc.pkl')
+            save_object({'corloc': corloc}, res_file)
+        logger.info('Mean CORLOC = {:.4f}'.format(np.mean(corlocs)))
+        logger.info('~~~~~~~~')
+        logger.info('Results:')
+        for corloc in corlocs:
+            logger.info('{:.3f}'.format(corloc))
+        logger.info('{:.3f}'.format(np.mean(corlocs)))
+        logger.info('~~~~~~~~')
+        logger.info('')
+        logger.info('----------------------------------------------------------')
+        logger.info('Results computed with the **unofficial** Python eval code.')
+        logger.info('Results should be very close to the official MATLAB code.')
+        logger.info('Use `./tools/reval.py --matlab ...` for your pcorlocer.')
+        logger.info('-- Thanks, The Management')
+        logger.info('----------------------------------------------------------')
 
 
 def _do_matlab_eval(json_dataset, salt, output_dir='output'):

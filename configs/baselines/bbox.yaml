@@ -3,7 +3,8 @@ MODEL:
   #CONV_BODY: ResNet.ResNet50_conv4_body
   CONV_BODY: VGG16.VGG16_conv5_body
   FASTER_RCNN: false
-NUM_GPUS: 4
+NUM_GPUS: 1
+#NUM_GPUS: 1
 DEDUP_BOXES:  0.125
 RESNETS:
   #IMAGENET_PRETRAINED_WEIGHTS: 'data/pretrained_model/resnet50_caffe.pth'

@@ -64,7 +64,8 @@ def add_wsddn_blobs(blobs, im_scales, roidb):
     # Concat the training blob lists into tensors
     for k, v in blobs.items():
         if isinstance(v, list) and len(v) > 0:
-            blobs[k] = np.concatenate(v)
+            if k != 'im_info':
+                blobs[k] = np.concatenate(v)
 
     # Perform any final work and validity checks after the collating blobs for
     # all minibatch images

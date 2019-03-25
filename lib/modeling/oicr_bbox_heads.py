@@ -9,7 +9,7 @@ from core.config import cfg
 import nn as mynn
 import utils.net as net_utils
 
-from iou_cal import assign_iou, assign_label
+#from iou_cal import assign_iou, assign_label
 #from featuredist_cal import assign_featuredist
 from iou_cal import bbox_overlaps
 import utils.net as net_utils
@@ -91,8 +91,8 @@ class oicr_outputs(nn.Module):
         if self.training:
             return bbox_mul, cls_refine1, cls_refine2, cls_refine3, bbox_pred
         else:
-            #x = cls_refine1 + cls_refine2 + cls_refine3
-            return cls_refine1 + cls_refine2 + cls_refine3, bbox_pred
+            #return cls_refine1 + cls_refine2 + cls_refine3, bbox_pred
+            return cls_refine2 + cls_refine3, bbox_pred
 
 
 
@@ -186,7 +186,6 @@ def oicr_losses(rois, bbox_mul, label_int32, cls_refine1, cls_refine2, cls_refin
     label3 = Variable(torch.from_numpy(label3)).cuda().float() # r * 21
     cls_refine3 = torch.clamp(cls_refine3, 1e-6, 1-1e-6)
 
-    print(torch.sum(-label3 * torch.log(cls_refine3), dim=0))
     refine_loss3 = torch.sum(torch.sum(-label3 * torch.log(cls_refine3), dim=1), dim=0) / torch.clamp(torch.sum(label3 > 1e-12).float(), 1., 999999999.)
 
 
