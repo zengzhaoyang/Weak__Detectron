@@ -11,13 +11,10 @@ from core.config import cfg
 from model.roi_pooling.functions.roi_pool import RoIPoolFunction
 from model.roi_crop.functions.roi_crop import RoICropFunction
 from modeling.roi_xfrom.roi_align.functions.roi_align import RoIAlignFunction
-#import modeling.oicr_heads as oicr_heads
 import modeling.oicr_bbox_heads as oicr_heads
-#import modeling.oicr_heads_b as oicr_heads
 
 import utils.blob as blob_utils
 import utils.net as net_utils
-#import utils.resnet_weights_helper as resnet_utils
 import utils.vgg_weights_helper as vgg_utils
 
 logger = logging.getLogger(__name__)

@@ -3,8 +3,6 @@ import os
 import torch
 from torch.utils.ffi import create_extension
 
-# sources = ['src/roi_align.c']
-# headers = ['src/roi_align.h']
 sources = []
 headers = []
 defines = []

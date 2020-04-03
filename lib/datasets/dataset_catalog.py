@@ -38,31 +38,6 @@ RAW_DIR = 'raw_dir'
 
 # Available datasets
 DATASETS = {
-    'cityscapes_fine_instanceonly_seg_train': {
-        IM_DIR:
-            _DATA_DIR + '/cityscapes/images',
-        ANN_FN:
-            _DATA_DIR + '/cityscapes/annotations/instancesonly_gtFine_train.json',
-        RAW_DIR:
-            _DATA_DIR + '/cityscapes/raw'
-    },
-    'cityscapes_fine_instanceonly_seg_val': {
-        IM_DIR:
-            _DATA_DIR + '/cityscapes/images',
-        # use filtered validation as there is an issue converting contours
-        ANN_FN:
-            _DATA_DIR + '/cityscapes/annotations/instancesonly_filtered_gtFine_val.json',
-        RAW_DIR:
-            _DATA_DIR + '/cityscapes/raw'
-    },
-    'cityscapes_fine_instanceonly_seg_test': {
-        IM_DIR:
-            _DATA_DIR + '/cityscapes/images',
-        ANN_FN:
-            _DATA_DIR + '/cityscapes/annotations/instancesonly_gtFine_test.json',
-        RAW_DIR:
-            _DATA_DIR + '/cityscapes/raw'
-    },
     'coco_2014_train': {
         IM_DIR:
             _DATA_DIR + '/coco/images/train2014',
@@ -86,112 +61,6 @@ DATASETS = {
             _DATA_DIR + '/coco/images/val2014',
         ANN_FN:
             _DATA_DIR + '/coco/annotations/instances_valminusminival2014.json'
-    },
-    'coco_2015_test': {
-        IM_DIR:
-            _DATA_DIR + '/coco/images/test2015',
-        ANN_FN:
-            _DATA_DIR + '/coco/annotations/image_info_test2015.json'
-    },
-    'coco_2015_test-dev': {
-        IM_DIR:
-            _DATA_DIR + '/coco/images/test2015',
-        ANN_FN:
-            _DATA_DIR + '/coco/annotations/image_info_test-dev2015.json'
-    },
-    'coco_2017_train': {
-        IM_DIR:
-            _DATA_DIR + '/coco/images/train2017',
-        ANN_FN:
-            _DATA_DIR + '/coco/annotations/instances_train2017.json',
-    },
-    'coco_2017_val': {
-        IM_DIR:
-            _DATA_DIR + '/coco/images/val2017',
-        ANN_FN:
-            _DATA_DIR + '/coco/annotations/instances_val2017.json',
-    },
-    'coco_2017_test': {  # 2017 test uses 2015 test images
-        IM_DIR:
-            _DATA_DIR + '/coco/images/test2015',
-        ANN_FN:
-            _DATA_DIR + '/coco/annotations/image_info_test2017.json',
-        IM_PREFIX:
-            'COCO_test2015_'
-    },
-    'coco_2017_test-dev': {  # 2017 test-dev uses 2015 test images
-        IM_DIR:
-            _DATA_DIR + '/coco/images/test2015',
-        ANN_FN:
-            _DATA_DIR + '/coco/annotations/image_info_test-dev2017.json',
-        IM_PREFIX:
-            'COCO_test2015_'
-    },
-    'coco_stuff_train': {
-        IM_DIR:
-            _DATA_DIR + '/coco/images/train2014',
-        ANN_FN:
-            _DATA_DIR + '/coco/annotations/stuff_train.json'
-    },
-    'coco_stuff_val': {
-        IM_DIR:
-            _DATA_DIR + '/coco/images/val2014',
-        ANN_FN:
-            _DATA_DIR + '/coco/annotations/stuff_val.json'
-    },
-    'keypoints_coco_2014_train': {
-        IM_DIR:
-            _DATA_DIR + '/coco/images/train2014',
-        ANN_FN:
-            _DATA_DIR + '/coco/annotations/person_keypoints_train2014.json'
-    },
-    'keypoints_coco_2014_val': {
-        IM_DIR:
-            _DATA_DIR + '/coco/images/val2014',
-        ANN_FN:
-            _DATA_DIR + '/coco/annotations/person_keypoints_val2014.json'
-    },
-    'keypoints_coco_2014_minival': {
-        IM_DIR:
-            _DATA_DIR + '/coco/images/val2014',
-        ANN_FN:
-            _DATA_DIR + '/coco/annotations/person_keypoints_minival2014.json'
-    },
-    'keypoints_coco_2014_valminusminival': {
-        IM_DIR:
-            _DATA_DIR + '/coco/images/val2014',
-        ANN_FN:
-            _DATA_DIR + '/coco/annotations/person_keypoints_valminusminival2014.json'
-    },
-    'keypoints_coco_2015_test': {
-        IM_DIR:
-            _DATA_DIR + '/coco/images/test2015',
-        ANN_FN:
-            _DATA_DIR + '/coco/annotations/image_info_test2015.json'
-    },
-    'keypoints_coco_2015_test-dev': {
-        IM_DIR:
-            _DATA_DIR + '/coco/images/test2015',
-        ANN_FN:
-            _DATA_DIR + '/coco/annotations/image_info_test-dev2015.json'
-    },
-    'keypoints_coco_2017_train': {
-        IM_DIR:
-            _DATA_DIR + '/coco/images/train2017',
-        ANN_FN:
-            _DATA_DIR + '/coco/annotations/person_keypoints_train2017.json'
-    },
-    'keypoints_coco_2017_val': {
-        IM_DIR:
-            _DATA_DIR + '/coco/images/val2017',
-        ANN_FN:
-            _DATA_DIR + '/coco/annotations/person_keypoints_val2017.json'
-    },
-    'keypoints_coco_2017_test': {
-        IM_DIR:
-            _DATA_DIR + '/coco/images/test2017',
-        ANN_FN:
-            _DATA_DIR + '/coco/annotations/image_info_test2017.json'
     },
     'voc_2007_train': {
         IM_DIR:
@@ -257,12 +126,4 @@ DATASETS = {
         DEVKIT_DIR:
             _DATA_DIR + '/VOC2012/VOCdevkit'
     },
-    'voc_oneshot': {
-        IM_DIR:
-            _DATA_DIR + '/VOC2007/JPEGImages',
-        ANN_FN:
-            _DATA_DIR + '/VOC2007/annotations/pascal_oneshot.json',
-        DEVKIT_DIR:
-            _DATA_DIR + '/VOC2007/VOCdevkit'
-    }
 }
